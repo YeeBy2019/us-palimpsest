@@ -1,88 +1,287 @@
 # us-palimpsest
 
-> 一张可以走进的美国历史地图。手绘质感，粒子转场，时间作为第一公民。
+> An American history map you can walk into. Engraved by hand, dissolved in dots, time as the first citizen.
 
-**us-palimpsest** 是一个基于 Three.js 的交互式 3D 美国历史地图集。它把从殖民时期到现代的美国疆域变迁、城市兴衰与关键事件，绘制在一张可探索的手绘风格地图上。用户拖动时间轴，边界如墨水般生长，城市光点逐次亮起，时代与时代之间以粒子消散与重组的方式过渡。
+**us-palimpsest** is an interactive 3D atlas of American history built with Three.js. It draws
+the changing territory, the rise of cities, and decisive events onto a single hand-drawn map you
+can explore. Time is the primary axis: the timeline advances chapter by chapter, boundaries bleed
+outward like ink, cities light up one by one, and one era gives way to the next through a
+dispersal of dots that settles back into the paper.
 
-灵感来自 [Chartogne-Taillet](https://chartogne-taillet.com/en) 的手绘 WebGL 叙事，以及 [sakura-fantasy](https://github.com/billpwchan/sakura-fantasy) 对“时间作为场景核心”的探索。
+Art direction follows [Chartogne-Taillet](https://chartogne-taillet.com/en) — built by Immersive
+Garden with Bruno Simon, Awwwards Site of the Day, 2 December 2020. What we take from it: an
+engraved-map aesthetic, watercolour washes on visible paper, a restrained palette, and one single
+transition device — the animated dot — that carries matter from one scene into the next.
 
-## ✦ 核心特性
+## Aesthetic direction
 
-- **时间轴驱动的地图** — 拖动滑块，美国边界、城市、铁路网随历史时期实时变化
-- **粒子转场** — 时代更替时，旧场景碎裂为尘埃/光点，重组为新场景
-- **探索式交互** — 从宏观地图平滑飞入微观历史现场
-- **手绘/纸张质感** — 水彩与版画风格渲染，不同时期使用不同的纸张纹理
-- **音频叙事** — 不同历史时期的环境音景平滑交叉淡入淡出
+Five rules, taken from the reference and treated as binding.
 
-## ✦ 历史阶段分节
+**1. One material per chapter.** Each chapter is rendered as a single believable physical
+substance: engraved line, ink wash, watercolour bleed, blueprint grid, newsprint, radar phosphor.
+Materials do not mix inside a chapter.
 
-时间轴分节参考历史频道纪录片 **《美利坚：我们的故事》（America: The Story of Us, 2010）** 的12集结构。该片以“人如何塑造美国”为叙事主线，覆盖从詹姆斯敦到21世纪初的400年历史。每一集对应时间轴上的一个阶段节点，拥有独立的视觉主题、粒子转场意象和音频层。
+**2. A restrained palette with three deliberate breaks.** The reference builds an entire site on a
+single colour (`#987654`). We keep a paper-and-ink spine across the whole atlas and differentiate
+chapters by *technique* — hatch density, line weight, wash softness, bleed radius — not by hue.
+Only three moments earn a hard hue shift: the dark red of Division, the radar green of WWII, and
+the screen white of Millennium. Because they are rare, they land.
 
-### 分节映射表
+**3. The dot is the only transition.** One device, applied consistently. The reference never cuts
+and never cross-fades; the previous scene is dispersed into dots that become the next scene's
+material. We do the same thing, and we do not add a second transition vocabulary.
 
-| 集数 | 标题     | 英文       | 核心时期    | 视觉主题                 | 粒子转场意象       | 音频层               |
-| ---- | -------- | ---------- | ----------- | ------------------------ | ------------------ | -------------------- |
-| 1    | 反抗者   | Rebels     | 1607–1770s  | 羊皮纸、墨迹、手写签名   | 墨水从纸张上晕开   | 教堂钟声、伐木声     |
-| 2    | 革命     | Revolution | 1775–1783   | 羊皮纸、火漆印           | 墨水晕开           | 教堂钟声、枪声       |
-| 3    | 西进     | Westward   | 1803–1860s  | 水彩晕染的平原、车辙痕迹 | 沙尘从地图上扬起   | 风声、马车轱辘       |
-| 4    | 分裂     | Division   | 1820s–1860  | 撕裂的纸边、暗红色墨渍   | 纸片碎裂为灰烬     | 远处炮火闷响         |
-| 5    | 内战     | Civil War  | 1861–1865   | 撕裂的纸边、暗红色墨渍   | 纸片碎裂为灰烬     | 远处炮火闷响         |
-| 6    | 腹地     | Heartland  | 1865–1890s  | 蓝图质感、铁锈色         | 煤烟与火星飘散     | 蒸汽机节律           |
-| 7    | 城市     | Cities     | 1870–1900   | 蓝图质感、铁锈色         | 煤烟与火星飘散     | 蒸汽机节律、铁轨震动 |
-| 8    | 繁荣     | Boom       | 1900–1929   | 干燥的报纸、金色         | 光点如烟花扩散     | 爵士乐、城市底噪     |
-| 9    | 萧条     | Bust       | 1929–1939   | 干燥的报纸、尘暴黄色     | 沙粒从纸面剥落     | 风滚草、金属关门声   |
-| 10   | 二战     | WWII       | 1941–1945   | 雷达绿、金属灰           | 光点如雷达脉冲扩散 | 无线电杂音、飞机轰鸣 |
-| 11   | 超级大国 | Superpower | 1945–1980s  | 雷达绿、金属灰           | 光点如雷达脉冲扩散 | 无线电杂音、电视广播 |
-| 12   | 千禧年   | Millennium | 1990s–2010s | 干净的屏幕蓝白           | 数据流般的光点     | 城市底噪、键盘声     |
+**4. Time is chaptered, not globally scrubbed.** See *Timeline model* below.
 
-### 合并与扩展策略
+**5. Layers settle, they do not stack.** See *The palimpsest rule* below.
 
-纪录片12集的时间分布不均匀（前5集约250年，后7集约150年）。在3D地图中，如果每个阶段占用相同的“时间轴长度”，早期阶段会过于拥挤。建议：
+## The palimpsest rule
 
-- **殖民与独立（1607–1783）**：将第1、2集合并为“**建国**”阶段，用羊皮纸/手稿质感呈现
-- **扩张与分裂（1803–1865）**：保留第3、4、5集为独立节点，这是地图边界变化最剧烈的时期
-- **重建与崛起（1865–1929）**：将第6、7、8集串联为“**从乡村到工业**”的连续变化
-- **危机与全球角色（1929–1980s）**：保留第9、10、11集，“超级大国”阶段拉长跨度，涵盖民权运动、越战、太空竞赛
-- **当代（1990s–）**：第12集作为收尾，简化为“回到当下”的定格
+**Decision: layering is in — but as sediment beneath the paper, not as translucent overlays on top
+of it.**
 
-## ✦ 技术栈
+The reasoning comes from the reference. Chartogne-Taillet convinces because everything on screen
+belongs to one physical material: engraved line, watercolour, sepia. Its transitions do not
+preserve the previous scene — the brush *becomes* bubbles, and the bubbles *become* the next
+illustration. A translucent ghost polygon layered over a new scene would break that unity. On an
+engraved plate, a faint overlapping outline reads as a registration error, not as history.
 
-| 层面     | 选型                             |
-| -------- | -------------------------------- |
-| 3D 渲染  | [Three.js](https://threejs.org/) |
-| 着色器   | GLSL（手绘质感、粒子转场）       |
-| 相机动画 | GSAP / 自定义 tween              |
-| 数据格式 | GeoJSON / TopoJSON               |
-| 构建     | Vite                             |
-| 部署     | GitHub Pages / Vercel            |
+So the rule is a scoped yes:
 
-## ✦ 路线图
+- **Anchors, not every layer.** A chapter may retain at most one to three *anchors* — boundary
+  states that were historically decisive (the 1783 treaty line, the 1803 purchase, the 1848
+  cession, the 1861 secession line). Not every era, and never the whole history at once.
+- **Anchors are drawn in the chapter's own material.** A retained boundary is desaturated engraved
+  hatch, never a filled translucent shape.
+- **The transition does double duty.** The dots that disperse the outgoing boundary are the same
+  dots that then lie down as hatching. Dissolve and deposit are one motion, not two.
+- **Nothing stacks forever.** An anchor decays into pure paper texture after two chapters and stops
+  being geometry — which also bounds fill-rate cost.
+- **At most two or three anchors are visible at any moment.**
 
-- [ ] 搭建 Three.js 基础场景与相机控制
-- [ ] 实现手绘质感着色器（纸张纹理、边缘抖动）
-- [ ] 接入历史边界数据（推荐从 19 世纪开始验证）
-- [ ] 实现时间轴滑块与边界动态生长
-- [ ] 按纪录片分节结构组织时间轴节点
-- [ ] 加入粒子转场系统（按分节映射表实现各阶段意象）
-- [ ] 城市光点与事件标记
-- [ ] 地图到历史现场的镜头飞行
-- [ ] 环境音景与音频交叉淡入
-- [ ] 扩展到完整时间跨度（1607–2010s）
+This is what the name means: the paper is reused, and the earlier ink is still faintly legible.
 
-## ✦ 数据来源
+## Chapters
 
-- [Lincoln Mullen: US Historical Boundaries](https://lincolnmullen.com/projects/us-boundaries/) — 1789–1959 年 141 个时间点的州与领土边界
-- [USAboundaries R 包](https://ropensci.github.io/USAboundaries/) — 1629–2000 年详细边界数据
-- [American Panorama](https://dsl.richmond.edu/panorama/) — 交互式美国历史地图集参考
-- [Chronicling America](https://chroniclingamerica.loc.gov/) — 历史报纸元数据
+Eight chapters. Contiguous, non-overlapping: every year belongs to exactly one chapter.
 
-## ✦ 灵感与参考
+| # | Chapter | Years | Documentary episodes | Material family | Transition motif | Audio layer |
+| - | ------- | ----- | -------------------- | --------------- | ---------------- | ----------- |
+| 1 | Founding | 1607–1783 | 1 Rebels, 2 Revolution | Parchment, iron-gall ink, wax seal | Ink blooming across paper | Church bell, sawing |
+| 2 | Expansion | 1783–1848 | 3 Westward | Watercolour wash, wheel ruts | Dust lifting off the map | Wind, wagon wheels |
+| 3 | Division | 1848–1865 | 4 Division, 5 Civil War | Torn paper edge, dark red ink stain | The sheet tearing into ash | Distant cannon fire |
+| 4 | Industry | 1865–1900 | 6 Heartland, 7 Cities | Blueprint grid, rust | Soot and sparks drifting | Steam rhythm, rail rumble |
+| 5 | Boom and Bust | 1900–1941 | 8 Boom, 9 Bust | Dry newsprint, gold foil then dust yellow | Grit flaking off the page | Jazz, city hum, tumbleweed |
+| 6 | WWII | 1941–1945 | 10 WWII | Radar green, gunmetal | Dots pulsing outward like radar | Radio static, engines |
+| 7 | Superpower | 1945–1989 | 11 Superpower | Radar green decaying toward paper | Dots returning inward | Broadcast, city hum |
+| 8 | Millennium | 1989–present | 12 Millennium | Clean screen white, survey blue | A stream of light data | Keyboard, city hum |
 
-- [Chartogne-Taillet](https://chartogne-taillet.com/en) — 手绘 WebGL 叙事与粒子转场
-- [sakura-fantasy](https://github.com/billpwchan/sakura-fantasy) — 时间作为场景核心
-- [America: The Story of Us (2010)](https://www.bilibili.com/video/BV1ff4y1Y7HA) — 历史阶段分节参考
-- [Bruno Simon](https://bruno-simon.com/) — 创意 Three.js 交互
+### What changed from the earlier draft, and why
 
-## ✦ 许可
+- **The documentary's episode ranges overlap and leave a gap.** Westward (1803–1860s) and Division
+  (1820s–1860) claimed the same forty years; Heartland (1865–1890s) and Cities (1870–1900) the
+  same twenty-five. That works for thematic television, but a timeline allows one state per year.
+  The chapters above are re-cut at inflection points — 1783 (treaty of Paris), 1848 (Mexican
+  Cession), 1865, 1900, 1941, 1945, 1989 — so the ranges no longer collide.
+- **The gap at 1783–1803 is closed.** No episode covered it: the Confederation period, the
+  Northwest Ordinance of 1787, the Constitutional Convention, and the Louisiana Purchase of 1803.
+  These are precisely the decisions that shaped every later boundary. Chapter 2 now owns them.
+- **Twelve visual themes were really seven.** Episodes 1≡2, 4≡5, 6≡7 and 10≡11 were given identical
+  materials, and 8 and 9 shared newsprint. The table above is the honest count.
+- **The merge strategy contradicted the theme table.** It folded episodes 6/7/8 into one continuous
+  phase even though episode 8's material (newsprint, gold) differed from 6/7 (blueprint, rust).
+  Fixed by splitting at 1900 instead.
 
-MIT
+## Timeline model
+
+**Continuous inside a chapter, discrete between chapters.** This resolves the tension between
+"time as the first citizen" and a chaptered narrative:
+
+- **A chapter is the unit of navigation.** The chapter selector is the primary control — a list of
+  chapter names, as in the reference's list of vineyard plots, each one a click away.
+- **Within a chapter, time is continuous.** The date can be moved freely; boundaries are derived
+  per date from interval-coded geometry, so ink genuinely grows rather than switching between
+  stored frames.
+- **Each chapter carries its own time scale.** Chapters do not compete for a fixed share of the
+  axis, so a four-year chapter is not crushed against a hundred-and-sixty-year one. This is the
+  crowding problem, solved by construction rather than by hand-tuning.
+- **Anchors are declared per chapter.** One to three anchor boundary states plus a set of key
+  events, sourced from AHCB's `CHANGE` field, which carries a human-readable explanation of every
+  boundary change.
+
+## Tech stack
+
+| Layer | Choice | Notes |
+| ----- | ------ | ----- |
+| Renderer | Three.js | WebGL2 |
+| Shaders | GLSL | Procedural paper, engraved-edge wobble, hatch, dot dispersal |
+| Camera and motion | GSAP | |
+| Data format | Interval-coded TopoJSON | Simplified per zoom tier, quantized |
+| Labels | MSDF text (`troika-three-text`) | Resolution-independent, holds up at any zoom |
+| Audio | Web Audio API | Per-chapter ambience, crossfaded; starts on first user gesture |
+| Build | Vite, TypeScript | |
+| Quality | ESLint, Prettier, Vitest | Tests target the data pipeline, which is the risky part |
+| Deploy | Vercel | See the note on GitHub Pages |
+
+### The data pipeline is the real work
+
+AHCB ships a national shapefile of roughly 142 MB containing overlapping date-coded polygons. None
+of it can reach a browser as-is. The pipeline is:
+
+```
+AHCB shapefile
+  → filter to a chapter's date range
+  → simplify with mapshaper (tolerance tuned per zoom tier)
+  → quantize and encode as TopoJSON
+  → one bundle per chapter, lazy-loaded
+```
+
+Each feature keeps its `START_DATE` / `END_DATE`, so boundaries are derived per date at runtime
+rather than pre-baked per date. There are no snapshot piles to ship — which is also how the
+reference project works.
+
+### Why not GitHub Pages
+
+Pages caps a site at 1 GB, a single file at 100 MB, and does not support Git LFS. That is the wrong
+shape for a project whose payload is geometry. Use Vercel — or keep Pages and cap the initial
+bundle to a single chapter.
+
+### Performance
+
+The reference deliberately degrades quality rather than dropping frames: it samples frame rate at
+key moments, lowers parameters when it falls short, and remembers the chosen quality level per
+browser. Adopt the same approach. Target 60 fps on a mid-range laptop with an integrated GPU, and
+require every quality tier to stay legible.
+
+## Data sources
+
+- **Newberry Library — Atlas of Historical County Boundaries (AHCB)**, John H. Long et al., Dr.
+  William M. Scholl Center for American History and Culture. Coverage
+  **1629-03-04 → 2000-12-31**, dated to the day, WGS84. The national state and territory synthesis
+  begins in 1783; county coverage reaches back to 1629. This is the upstream source for the two
+  entries below.
+- **lmullen/historical-us-boundaries** — an interactive map over the same data, covering
+  **1783–1912** (per the project page and the map's own slider domain). Worth taking two things:
+  its `CHANGE` field holds a human-readable explanation of each boundary change, and `cw.csv`
+  holds secession and re-admission dates. That is the annotation layer for chapters 3 and 4.
+- **ropensci/USAboundaries** — an R package over the same AHCB data. Useful for shaping and for
+  sanity-checking derived geometry.
+- **OpenHistoricalMap** — an OSM-style historical map that also ingests AHCB. Worth evaluating as a
+  cross-check.
+- **American Panorama**, **Chronicling America** — references for interaction patterns and for
+  event and newspaper metadata.
+
+### Coverage limits, stated plainly
+
+- **Nothing before 1629.** Chapter 1 opens in 1607 for the narrative, but boundary geometry only
+  exists from 1629. Pre-1629 is represented by settlement lights, never by filled territory.
+- **Nothing authoritative after 2000.** Boundaries are effectively static from then on. Chapter 8
+  renders contemporary geometry and treats the period as narrative rather than territorial change.
+- **Contiguous United States only.** The Mullen map excludes Alaska, Hawaii, and DC; AHCB covers
+  them in separate datasets. Decide per chapter whether to include them.
+
+## Licensing
+
+**Code: MIT.** See `LICENSE`.
+
+**Data: not MIT.** AHCB was originally published under CC BY-NC-SA, and some secondary sources —
+including rOpenSci's `USAboundaries` documentation — still quote that label. It is superseded. The
+Newberry now states that the data may be reused "for any lawful purpose, commercial or
+non-commercial, without licensing or permission fees to the library", and that stale CC notices left
+in old files "can be ignored".
+
+The practical consequence: the data is free to use, but it must not be swept under our MIT
+declaration. Boundary data lives in its own directory with its own `NOTICE` file, and the source is
+credited in-product. Attribution is owed in spirit even where the current terms do not demand it.
+
+**Art and audio assets: to be decided.** Original illustration and sound work is ours to license.
+Third-party samples must be CC0 or explicitly cleared, and recorded in `NOTICE`.
+
+**Reference material is cited, never bundled.** The documentary is a structural reference; no frames,
+audio, or transcript from it enter this repository.
+
+## Roadmap
+
+Revised to be depth-first. This project's product is the way it looks — if the look is wrong,
+nothing else saves it. Ten breadth-first tasks would let all of them move while the one thing that
+matters stays unverified.
+
+### M0 — Vertical slice: prove the look
+
+One chapter, chosen for the most dramatic boundary change and the cleanest material: **Chapter 3,
+Division (1848–1865)**.
+
+- Data pipeline for that chapter only
+- Procedural paper and engraved-edge shader
+- Continuous boundary morph inside the chapter
+- One dot transition in, one out
+- One anchor layer — the 1861 secession line, still legible beneath the 1865 state
+- A two-chapter selector, so the transition can actually be felt
+
+*Success criterion:* a fifteen-second capture that makes someone ask how it was made. If it does not,
+iterate on the shader before writing another feature.
+
+### M1 — The spine
+
+All eight chapters. Chapter selector, per-chapter time scales, anchor layers, transitions, camera
+states. Audio stubbed.
+
+### M2 — Anchors and annotation
+
+Boundary-change annotations from AHCB's `CHANGE` field, city lights, event markers. This is content
+depth — exactly where the reference scored lowest with juries (content 7.89 against creativity 8.53).
+Treat it as a feature, not garnish.
+
+### M3 — Sound
+
+Per-chapter ambience, crossfaded on chapter change, started on the first user gesture. The reference
+treats sound as a first-class layer; so do we.
+
+### M4 — Depth
+
+Camera dive from the map into a local historical scene. Note the scale change: this is not data
+visualisation, it is per-scene 3D art production — a colonial town, a Civil War field, each an
+independent content project. Track it separately and do not let it block M1–M3.
+
+### M5 — Ship
+
+Quality tiers with persistence, keyboard chapter navigation, `prefers-reduced-motion`, mobile
+fallback, deployment.
+
+### Non-goals for now
+
+- **Real 3D topography.** The map is a drawn plane, not a terrain model, until the look is proven
+  without it.
+- **County-level geometry at launch.** Seventeen thousand plus polygons. State and territory level
+  first.
+- **Anything before 1629 or after 2000.**
+
+## Development
+
+Not scaffolded yet. Intended layout:
+
+```
+src/
+  chapters/     chapter definitions: years, material, anchors, audio, camera
+  data/         per-chapter TopoJSON bundles (generated, not committed)
+  shaders/      paper, ink, hatching, dot dispersal
+  scene/        renderer, camera, material library
+pipeline/       shapefile to TopoJSON build scripts
+public/audio/   per-chapter ambience
+```
+
+```
+npm install
+npm run data:build    # regenerate chapter bundles from AHCB source
+npm run dev
+npm run build
+```
+
+## References
+
+- [Chartogne-Taillet](https://chartogne-taillet.com/en) — Immersive Garden, with Bruno Simon and
+  Mooders. Art direction and transition reference.
+- [sakura-fantasy](https://github.com/billpwchan/sakura-fantasy) — time as the core of the scene.
+- [Bruno Simon](https://bruno-simon.com/) — creative Three.js.
+- [American Panorama](https://dsl.richmond.edu/panorama/) — interactive historical atlas.
+- *America: The Story of Us* (History Channel, 2010) — chapter structure reference.
