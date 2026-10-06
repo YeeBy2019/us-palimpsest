@@ -1,11 +1,11 @@
-# ---------- 依赖 ----------
+# ---------- Dependencies ----------
 node_modules/
 .pnpm-store/
 .yarn/cache
 .yarn/install-state.gz
 package-lock.json.bak
 
-# ---------- 构建产物 ----------
+# ---------- Build output ----------
 dist/
 dist-ssr/
 build/
@@ -13,12 +13,12 @@ out/
 .vite/
 *.local
 
-# ---------- 环境变量与密钥 ----------
+# ---------- Environment & secrets ----------
 .env
 .env.*
 !.env.example
 
-# ---------- 日志 ----------
+# ---------- Logs ----------
 logs/
 *.log
 npm-debug.log*
@@ -26,7 +26,7 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# ---------- 编辑器 / IDE ----------
+# ---------- Editors / IDE ----------
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
@@ -39,22 +39,22 @@ pnpm-debug.log*
 *.sln
 *.sw?
 
-# ---------- 操作系统 ----------
+# ---------- OS ----------
 .DS_Store
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 
-# ---------- 缓存 ----------
+# ---------- Caches ----------
 .cache/
 .eslintcache
 .stylelintcache
 .temp/
 tmp/
 
-# ---------- 数据文件（体量大，按需放开） ----------
-# 本地下载的原始地理数据与模型，不随仓库分发
+# ---------- Data files (large, opt in when needed) ----------
+# Raw geographic data and models downloaded locally; not distributed with the repo.
 data/raw/
 assets/models/
 *.shp
@@ -63,7 +63,8 @@ assets/models/
 *.prj
 *.zip
 
-# ---------- 音频 / 视频素材（体积大，建议用外部存储或 Git LFS） ----------
+# ---------- Audio / video assets ----------
+# Large binaries; prefer external storage or Git LFS instead of plain Git.
 *.mp3
 *.wav
 *.ogg
