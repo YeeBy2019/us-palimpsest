@@ -1,5 +1,7 @@
 # us-palimpsest
 
+**English** | [简体中文](./README.zh-CN.md)
+
 > An American history map you can walk into. Engraved by hand, dissolved in dots, time as the first citizen.
 
 **us-palimpsest** is an interactive 3D atlas of American history built with Three.js. It draws
