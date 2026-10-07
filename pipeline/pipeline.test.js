@@ -8,15 +8,32 @@
  * the map wrong.
  */
 
+import { existsSync, readFileSync } from 'node:fs';
+import { mkdtemp, readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 import { geoMercator } from 'd3-geo';
 
 import { CHAPTERS, isoToN, isoToYear } from '../src/timeline/chapters.js';
-import { decodeArcs, ringArea } from '../src/lib/topojson.js';
-import { createProjection, fitSheet } from './lib/project.js';
-import { placeable } from './lib/placeable.js';
+import { decodeArcs, eachArcIndex, polygonRings, ringArea } from '../src/lib/topojson.js';
+import { PANEL_RECTS, createProjectors, fitPanel, fitSheet } from './lib/project.js';
+import { MAINLAND, PANEL_REGIONS, regionOf } from './lib/regions.js';
 import { quantizeArcs } from './lib/quantize.js';
 import { simplifyArc } from './lib/simplify.js';
+import { writeJson } from './lib/write.js';
+
+/**
+ * The raw record is not committed — see `.gitignore` — so the tests that
+ * measure the layout against it can only run where it has been fetched. They
+ * are the most valuable tests in this file, so they say so out loud rather than
+ * skipping quietly: if the suite reports them as skipped, the layout is
+ * unguarded and `npm run data:build` has not been run.
+ */
+const SOURCE = fileURLToPath(new URL('../data/raw/us.json', import.meta.url));
+const hasRecord = existsSync(SOURCE);
 
 describe('quantisation', () => {
   it('survives a round trip within half a grid step', () => {
@@ -99,7 +116,7 @@ describe('simplification', () => {
 });
 
 describe('projection and the sheet', () => {
-  const project = createProjection();
+  const project = createProjectors().mainland;
 
   it('places the lower forty-eight and refuses nothing it is given', () => {
     const seattle = project([-122.33, 47.61]);
@@ -207,45 +224,46 @@ describe('projection and the sheet', () => {
   });
 });
 
-describe('the insets are excluded, and must stay excluded until they have panels', () => {
-  const geometry = (id) => ({ properties: { ID: id } });
-
-  it('rejects the Alaska and Hawaii features and accepts everything else', () => {
-    for (const id of ['ak_dept', 'ak_district', 'ak_terr', 'ak_state', 'hi_annexation', 'hi_terr', 'hi_state']) {
-      expect(placeable(geometry(id)), id).toBe(false);
+describe('regions', () => {
+  it('sends the Alaska and Hawaii features to their own panels and everything else to the sheet', () => {
+    for (const id of ['ak_dept', 'ak_district', 'ak_terr', 'ak_state']) {
+      expect(regionOf(id), id).toBe('alaska');
     }
-    for (const id of ['wa_state', 'tx_republic', 'dc', 'it_indianterr', 'er_triangleuft']) {
-      expect(placeable(geometry(id)), id).toBe(true);
+    for (const id of ['hi_annexation', 'hi_terr', 'hi_state']) {
+      expect(regionOf(id), id).toBe('hawaii');
+    }
+    for (const id of ['wa_state', 'tx_republic', 'dc', 'it_indianterr', 'er_triangleuft', 'or_country', 'mx_cession']) {
+      expect(regionOf(id), id).toBe(MAINLAND);
     }
   });
 
-  it('lands them outside the sheet without ever failing, which is why the rule has to be explicit', () => {
-    // This test does not guard `placeable` — it is the reason `placeable`
-    // exists. The lower-48 projection does not fail on Alaska: it returns
-    // finite, plausible numbers that simply are not on the paper. Anchorage
-    // comes back at y 1.09 and Nome at y 1.28 against a sheet half that tall,
+  it('still loses the insets to the mainland projector, which is why routing is by id and not by coordinate', () => {
+    // This test guards no function. It exists so the next person cannot read
+    // `regions.js` as over-engineering: the lower-48 projection does not fail on
+    // Alaska, so a pipeline that decided where to draw a coordinate by looking
+    // at the coordinate would ship a plausible-looking wrong answer. Anchorage
+    // comes back at y 1.09 and Nome at 1.28 against a sheet 0.776 tall, and
     // Honolulu at x -0.92 against a sheet one unit wide, while Seattle sits at
-    // 0.03, 0.62, inside. Nothing in the pipeline could have noticed.
-    const project = createProjection();
+    // 0.03, 0.62, comfortably inside. Nothing in the pipeline could have
+    // noticed, which is exactly what the routing rule is for.
+    const mainland = createProjectors().mainland;
 
-    const mainland = [
+    const corners = [
       [-124.7, 48.4], // Cape Flattery
       [-66.9, 44.8], // eastern Maine
       [-80.5, 25.1], // Miami
       [-117.1, 32.5], // San Diego
       [-97.5, 25.8], // the Rio Grande mouth
-    ].map(project);
+    ].map(mainland);
 
-    const { normalize, sheet } = fitSheet(mainland);
+    const { normalize, sheet } = fitSheet(corners);
 
-    const insets = [
+    for (const [lon, lat] of [
       [-149.9, 61.2], // Anchorage
       [-165.4, 64.5], // Nome
       [-157.9, 21.3], // Honolulu
-    ];
-
-    for (const [lon, lat] of insets) {
-      const point = project([lon, lat]);
+    ]) {
+      const point = mainland([lon, lat]);
       expect(point, `${lat}N ${lon}E should project without complaint`).not.toBeNull();
       expect(Number.isFinite(point[0]) && Number.isFinite(point[1])).toBe(true);
 
@@ -255,11 +273,267 @@ describe('the insets are excluded, and must stay excluded until they have panels
     }
 
     // And the control, so a sheet that swallowed everything could not pass this.
-    const [sx, sy] = normalize(project([-122.33, 47.61]));
+    const [sx, sy] = normalize(mainland([-122.33, 47.61]));
     expect(sx).toBeGreaterThan(0);
     expect(sx).toBeLessThan(sheet.width);
     expect(sy).toBeGreaterThan(0);
     expect(sy).toBeLessThan(sheet.height);
+  });
+});
+
+describe('fitting a panel', () => {
+  it('fills its rectangle without distorting the shape', () => {
+    // A 2:1 shape into a 2:1 rectangle: it should use the whole rectangle.
+    const points = [
+      [0, 0],
+      [2, 0],
+      [2, 1],
+      [0, 1],
+    ];
+    const rect = [0, 0, 1, 0.5];
+    const drawn = points.map(fitPanel(points, rect).normalize);
+
+    const xs = drawn.map((p) => p[0]);
+    const ys = drawn.map((p) => p[1]);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(1, 9);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(0.5, 9);
+    expect(Math.min(...xs)).toBeCloseTo(rect[0], 9);
+    expect(Math.min(...ys)).toBeCloseTo(rect[1], 9);
+  });
+
+  it('keeps a shape inside its rectangle when the two disagree', () => {
+    // A tall shape in a wide rectangle. The point is that it shrinks to fit
+    // rather than overflowing, and stays centred rather than hugging an edge.
+    const points = [
+      [0, 0],
+      [1, 0],
+      [1, 4],
+      [0, 4],
+    ];
+    const rect = [0.1, 0.2, 0.9, 0.5];
+    const drawn = points.map(fitPanel(points, rect).normalize);
+
+    for (const [x, y] of drawn) {
+      expect(x).toBeGreaterThanOrEqual(rect[0] - 1e-9);
+      expect(x).toBeLessThanOrEqual(rect[2] + 1e-9);
+      expect(y).toBeGreaterThanOrEqual(rect[1] - 1e-9);
+      expect(y).toBeLessThanOrEqual(rect[3] + 1e-9);
+    }
+    // centred horizontally in the slack it did not use
+    const xs = drawn.map((p) => p[0]);
+    expect(rect[2] - Math.max(...xs)).toBeCloseTo(Math.min(...xs) - rect[0], 9);
+  });
+
+  it('flips y, so north is the top of the rectangle', () => {
+    // Projected coordinates are d3's, which are y-down: a northern point has
+    // the *smaller* y. The sheet is y-up, so this flip is what stands between a
+    // correctly oriented inset and an upside-down Alaska — which, being roughly
+    // symmetric about its own middle, is a mistake that could survive review.
+    const north = [0, 1];
+    const south = [0, 9];
+    const rect = [0, 0, 1, 1];
+    const { normalize } = fitPanel([north, south], rect);
+    expect(normalize(north)[1]).toBeCloseTo(1, 9);
+    expect(normalize(south)[1]).toBeCloseTo(0, 9);
+  });
+});
+
+describe('writing a bundle', () => {
+  const tempFile = async (name) => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'us-palimpsest-'));
+    return path.join(dir, name);
+  };
+
+  it('returns what landed on disk, not what was sent', async () => {
+    const file = await tempFile('bundle.json');
+    const json = JSON.stringify({ chapter: 'industry', geometries: 82 });
+    const bytes = await writeJson(file, json);
+
+    expect(bytes).toBe(json.length);
+    expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({
+      chapter: 'industry',
+      geometries: 82,
+    });
+  });
+
+  it('refuses to call a truncated document a success', async () => {
+    // The exact field symptom that motivated this module. A bundle was written
+    // zero bytes long while the build reported `125.5 KB`, and the only evidence
+    // was a SyntaxError in a browser console. Cutting a document short has to be
+    // a build failure, and the build has to be the thing that says so.
+    const file = await tempFile('truncated.json');
+    await expect(writeJson(file, '{"objects":{"states":')).rejects.toThrow(/does not parse/);
+  });
+
+  it('refuses to call an empty write a success', async () => {
+    // The literal version of the incident: a zero-byte file and a green build.
+    const file = await tempFile('empty.json');
+    await expect(writeJson(file, '')).rejects.toThrow(/does not parse/);
+  });
+});
+
+describe('the panel layout against the real record', () => {
+  const source = hasRecord ? JSON.parse(readFileSync(SOURCE, 'utf8')) : null;
+
+  const regionPoints = (source, projectors, region) => {
+    const arcs = decodeArcs(source);
+    const points = [];
+    for (const geometry of source.objects.states.geometries) {
+      if (regionOf(geometry.properties.ID) !== region) continue;
+      eachArcIndex(geometry, (i) => {
+        for (const point of arcs[i < 0 ? ~i : i]) {
+          const projected = projectors[region](point);
+          if (projected) points.push(projected);
+        }
+      });
+    }
+    return points;
+  };
+
+  it.skipIf(!hasRecord)('never lets an arc belong to two regions', () => {
+    // The routing in `build.js` reads an arc's region off the geometries that
+    // reference it, and a later write silently wins. That is sound only while
+    // the regions stay disjoint, which is a property of AHCB's file rather than
+    // of this code — so it is checked rather than assumed.
+    const owners = new Map();
+    for (const geometry of source.objects.states.geometries) {
+      const region = regionOf(geometry.properties.ID);
+      eachArcIndex(geometry, (i) => {
+        const index = i < 0 ? ~i : i;
+        if (!owners.has(index)) owners.set(index, new Set());
+        owners.get(index).add(region);
+      });
+    }
+    const shared = [...owners.entries()].filter(([, regions]) => regions.size > 1);
+    expect(
+      shared.map(([index, regions]) => `${index}:${[...regions].join('+')}`),
+      'arcs referenced by more than one region',
+    ).toEqual([]);
+  });
+
+  it.skipIf(!hasRecord)('places every panel inside the sheet', () => {
+    const projectors = createProjectors();
+    const { sheet } = fitSheet(regionPoints(source, projectors, MAINLAND));
+    for (const region of PANEL_REGIONS) {
+      const [x0, y0, x1, y1] = PANEL_RECTS[region];
+      expect(x0, region).toBeGreaterThanOrEqual(0);
+      expect(y0, region).toBeGreaterThanOrEqual(0);
+      expect(x1, region).toBeLessThanOrEqual(sheet.width);
+      expect(y1, region).toBeLessThanOrEqual(sheet.height);
+    }
+  });
+
+  it.skipIf(!hasRecord)('draws one shape per panel, however many dated versions the record holds', () => {
+    // The measurement behind a claim made in the README and in `chapters.js`:
+    // the panels are static plates. AHCB re-registers the same outline under a
+    // new political name whenever a territory changes status, so a statehood
+    // moves no line at all. Fifteen inset geometries — eight Alaska versions,
+    // seven Hawaii versions — collapse onto two shapes.
+    //
+    // It is a test because the claim is load-bearing. It is the argument for the
+    // annotation layer being a milestone rather than garnish: inside a panel, the
+    // `CHANGE` field and the label are the only things that can carry history.
+    // If a future data swap made the insets move, that argument would become
+    // false silently, and prose does not fail a build.
+    const arcs = decodeArcs(source);
+    const projectors = createProjectors();
+    const shapes = new Map();
+    const counts = new Map();
+
+    for (const geometry of source.objects.states.geometries) {
+      const region = regionOf(geometry.properties.ID);
+      if (!PANEL_REGIONS.includes(region)) continue;
+
+      const points = [];
+      eachArcIndex(geometry, (i) => {
+        for (const point of arcs[i < 0 ? ~i : i]) {
+          const projected = projectors[region](point);
+          if (projected) points.push(projected);
+        }
+      });
+
+      // Rounded to the bundle's own precision, so this compares the drawn shape
+      // rather than floating-point noise.
+      const shape = points.map(([x, y]) => `${x.toFixed(9)},${y.toFixed(9)}`).join(';');
+      if (!shapes.has(region)) shapes.set(region, new Set());
+      shapes.get(region).add(shape);
+      counts.set(region, (counts.get(region) ?? 0) + 1);
+    }
+
+    for (const region of PANEL_REGIONS) {
+      // Without this the test would pass vacuously if the routing broke and no
+      // geometry reached a panel at all.
+      expect(counts.get(region) ?? 0, `${region} should have dated versions`).toBeGreaterThan(1);
+      expect(shapes.get(region).size, `${region} should draw exactly one shape`).toBe(1);
+    }
+  });
+
+  it.skipIf(!hasRecord)('keeps every panel rectangle clear of mainland land', () => {
+    // The rectangles are the largest that fit in the sheet's south-west ocean,
+    // and they were found by scanning the ceiling rather than by eye. This
+    // re-derives the answer from the geometry: a polygon-versus-rectangle
+    // intersection, exact for the vector data, rather than a sample of vertices.
+    // Sampling vertices would not have caught this — most of the mainland's area
+    // carries no vertex at all, so a rectangle sitting inside Arizona looks
+    // empty. It did, in fact, look empty, until this test was written.
+    const projectors = createProjectors();
+    const { normalize } = fitSheet(regionPoints(source, projectors, MAINLAND));
+    const arcs = decodeArcs(source);
+
+    const crosses = (a, b, c, d) => {
+      const side = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+      const d1 = side(c, d, a);
+      const d2 = side(c, d, b);
+      const d3 = side(a, b, c);
+      const d4 = side(a, b, d);
+      return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+    };
+
+    const overlaps = (rings, rect) => {
+      const corners = [
+        [rect[0], rect[1]],
+        [rect[2], rect[1]],
+        [rect[2], rect[3]],
+        [rect[0], rect[3]],
+      ];
+      const within = ([x, y]) => x > rect[0] && x < rect[2] && y > rect[1] && y < rect[3];
+      for (const ring of rings) {
+        for (const point of ring) if (within(point)) return true;
+        for (let i = 0; i < ring.length; i++) {
+          const a = ring[i];
+          const b = ring[(i + 1) % ring.length];
+          for (let k = 0; k < 4; k++) {
+            if (crosses(a, b, corners[k], corners[(k + 1) % 4])) return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    for (const region of PANEL_REGIONS) {
+      const rect = PANEL_RECTS[region];
+      const offenders = [];
+      for (const geometry of source.objects.states.geometries) {
+        if (regionOf(geometry.properties.ID) !== MAINLAND) continue;
+        for (const polygon of polygonRings(geometry, arcs)) {
+          const rings = polygon
+            .map((ring) =>
+              ring
+                .map((point) => {
+                  const metres = projectors.mainland(point);
+                  return metres ? normalize(metres) : null;
+                })
+                .filter(Boolean),
+            )
+            .filter((ring) => ring.length >= 3);
+          if (rings.length && overlaps(rings, rect)) {
+            offenders.push(geometry.properties.ID);
+            break;
+          }
+        }
+      }
+      expect(offenders, `${region} panel runs into ${offenders.join(', ')}`).toEqual([]);
+    }
   });
 });
 

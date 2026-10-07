@@ -11,35 +11,42 @@
  *   us.json (interval-coded, lon/lat)
  *     -> decode arcs to absolute coordinates
  *     -> prune to the geometries a chapter's window touches
- *     -> project once, into the fixed sheet space
+ *     -> project, each region through its own projection, into the fixed sheet
  *     -> simplify, arc by arc, topology safely
  *     -> quantise back to TopoJSON
  *     -> one bundle per chapter
  *
- * Two rules the whole file obeys:
+ * Three rules the whole file obeys:
  *
  * 1. **Decode once, quantise once.** All the cutting happens in absolute
  *    coordinates. If a chapter's geometry were projected or rounded separately
  *    from its neighbour's, shared borders would drift apart and the seam would
  *    be visible on an engraved map.
- * 2. **The sheet is fitted once, from the whole record.** The projection is
- *    fixed for the atlas, so the sheet must be too — otherwise an anchor would
- *    no longer lie exactly beneath the boundary that succeeds it.
+ * 2. **The sheet, and every panel, is fitted once from the whole record.** The
+ *    projections are fixed for the atlas, so what they draw into must be too —
+ *    otherwise an anchor would no longer lie exactly beneath the boundary that
+ *    succeeds it, and a panel would change size when a chapter's window clipped
+ *    one version of its outline. Fitting is a property of the record, not of a
+ *    chapter.
+ * 3. **A geometry is projected by its own region's projector.** See
+ *    `lib/regions.js` for why that is a routing rule and not a filter, and for
+ *    what the previous version of it got wrong.
  *
  * Generated bundles are not committed. `npm run data:build` regenerates them.
  */
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { CHAPTERS } from '../src/timeline/chapters.js';
 import { decodeArcs } from '../src/lib/topojson.js';
 import { eachArcIndex, pruneTopology } from './lib/topology.js';
-import { createProjection, fitSheet } from './lib/project.js';
-import { placeable } from './lib/placeable.js';
+import { PANEL_RECTS, createProjectors, fitPanel, fitSheet } from './lib/project.js';
+import { MAINLAND, PANEL_REGIONS, regionOf } from './lib/regions.js';
 import { simplifyArcs } from './lib/simplify.js';
 import { quantizeArcs } from './lib/quantize.js';
+import { writeJson } from './lib/write.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SOURCE = path.join(ROOT, 'data/raw/us.json');
@@ -76,17 +83,6 @@ const QUANT_RESOLUTION = Number(process.env.SHEET_RESOLUTION ?? 2_000);
  */
 const TOLERANCE = Number(process.env.SHEET_TOLERANCE ?? 4e-4);
 
-/**
- * Alaska and Hawaii are insets in their own projections; they are not part of
- * the main field. The rule and the measurements behind it live in
- * `lib/placeable.js`, because the failure mode there is silent and the module
- * is worth a test of its own.
- *
- * Applying it in all three places — the fit, the prune and the annotation — is
- * what the earlier version got wrong: it guarded only the fit, so from Chapter
- * 4 onward every bundle carried a projected Alaska that was not on the sheet.
- */
-
 /** Fields worth the bytes; the rest of AHCB's forty-column properties are dropped. */
 function slimProperties(properties) {
   return {
@@ -101,18 +97,55 @@ function slimProperties(properties) {
   };
 }
 
-/** Every arc index referenced by a mainland geometry. */
-function mainlandArcIndices(topology) {
+/** Every arc index referenced by a geometry in the given region. */
+function regionArcs(topology, region) {
   const indices = new Set();
   for (const geometry of topology.objects.states.geometries) {
-    if (!placeable(geometry)) continue;
+    if (regionOf(geometry.properties.ID) !== region) continue;
     eachArcIndex(geometry, (i) => indices.add(i < 0 ? ~i : i));
   }
   return indices;
 }
 
+/** Every projected point of a region, in the whole record, as [x, y] metres. */
+function regionPoints(topology, arcsAbsolute, project, region) {
+  const points = [];
+  for (const index of regionArcs(topology, region)) {
+    for (const point of arcsAbsolute[index]) {
+      const projected = project(point);
+      if (projected) points.push(projected);
+    }
+  }
+  return points;
+}
+
 function formatKb(bytes) {
   return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+/**
+ * The frame around a panel: a closed rectangle, drawn as one arc.
+ *
+ * It is a `LineString`, not a `Polygon`, and that is what makes it work with no
+ * new machinery anywhere. The fill pass asks `polygonRings` for a geometry's
+ * polygons, gets an empty list for a LineString and draws nothing; the outline
+ * pass walks `eachArcIndex`, gets the rectangle's five points and draws four
+ * segments; and both carry the same date attributes as everything else, so the
+ * frame fades in with its panel, disperses into dots with the rest of the
+ * chapter, and needs no uniform and no second material.
+ *
+ * Without it the atlas would be asserting that Alaska is an island in the
+ * Pacific, which is a cartographic lie rather than a stylistic choice.
+ */
+function panelFrame(region, startN) {
+  const [x0, y0, x1, y1] = PANEL_RECTS[region];
+  return [
+    [x0, y0],
+    [x1, y0],
+    [x1, y1],
+    [x0, y1],
+    [x0, y0],
+  ];
 }
 
 async function main() {
@@ -121,25 +154,46 @@ async function main() {
   const source = JSON.parse(await readFile(SOURCE, 'utf8'));
   const total = source.objects.states.geometries.length;
   const arcsAbsolute = decodeArcs(source);
-  const project = createProjection();
+  const projectors = createProjectors();
 
-  // ---- the sheet, fitted once -------------------------------------------
-  const mainland = mainlandArcIndices(source);
-  const mainlandPoints = [];
-  for (const index of mainland) {
-    for (const point of arcsAbsolute[index]) {
-      const projected = project(point);
-      if (projected) mainlandPoints.push(projected);
-    }
+  // The last day the record speaks to. Used as the end of a panel frame's
+  // validity, because a frame is not a boundary: once the panel exists it is
+  // there to the end, and `t` is what says so.
+  const recordEndN = Math.max(...source.objects.states.geometries.map((g) => g.properties.END_N));
+
+  // ---- the sheet, fitted once from the mainland alone ---------------------
+  const { normalize: toSheet, sheet } = fitSheet(
+    regionPoints(source, arcsAbsolute, projectors.mainland, MAINLAND),
+  );
+
+  // ---- and each panel, also fitted once from the whole record -------------
+  const panelFits = {};
+  for (const region of PANEL_REGIONS) {
+    const fit = fitPanel(regionPoints(source, arcsAbsolute, projectors[region], region), PANEL_RECTS[region]);
+    panelFits[region] = fit;
+    // The frame deserves to be there from the day the region's first geometry
+    // begins — the purchase, the annexation — not from the day it becomes a
+    // state. Derived from the data rather than written down, so it follows.
+    fit.debut = Math.min(
+      ...source.objects.states.geometries
+        .filter((g) => regionOf(g.properties.ID) === region)
+        .map((g) => g.properties.START_N),
+    );
+    fit.againstMainland = fit.scale * sheet.metresWide;
   }
-  const { normalize, sheet } = fitSheet(mainlandPoints);
 
   console.log(`source            ${total} geometries, ${arcsAbsolute.length} arcs`);
-  console.log(`mainland          ${mainland.size} arcs fitted to the sheet`);
   console.log(
     `sheet             ${sheet.width.toFixed(4)} x ${sheet.height.toFixed(4)} ` +
-      `(aspect ${(sheet.width / sheet.height).toFixed(4)})`,
+      `(aspect ${(sheet.width / sheet.height).toFixed(4)}, ${(sheet.metresWide / 1000).toFixed(0)} km wide)`,
   );
+  for (const region of PANEL_REGIONS) {
+    const fit = panelFits[region];
+    console.log(
+      `panel ${region.padEnd(8)}  rect ${PANEL_RECTS[region].join(', ')}  ` +
+        `drawn at ${fit.againstMainland.toFixed(3)} x the lower-48  from ${fit.debut}`,
+    );
+  }
   console.log('');
 
   await mkdir(OUT_DIR, { recursive: true });
@@ -149,37 +203,65 @@ async function main() {
     if (!chapter.built) continue;
 
     // ---- prune to this chapter's window -------------------------------
+    // Date only, now. The insets are no longer excluded: they are routed.
     const pruned = pruneTopology(
       source,
       arcsAbsolute,
       (geometry) =>
-        placeable(geometry) &&
         geometry.properties.START_N <= chapter.endN && geometry.properties.END_N >= chapter.startN,
     );
 
-    // ---- project into sheet space -------------------------------------
-    const projected = pruned.arcs.map((arc) =>
-      arc.map((point) => {
+    // Which region each surviving arc belongs to. Read off the geometries that
+    // reference it rather than from the source indices, because pruning
+    // renumbers arcs. An arc referenced by two regions would be silently won by
+    // the last write, which is why `pipeline.test.js` asserts that cannot
+    // happen rather than trusting it.
+    const arcRegion = new Map();
+    for (const geometry of pruned.objects.states.geometries) {
+      const region = regionOf(geometry.properties.ID);
+      eachArcIndex(geometry, (i) => arcRegion.set(i < 0 ? ~i : i, region));
+    }
+
+    // ---- project into sheet space, each region its own way -------------
+    const projected = pruned.arcs.map((arc, index) => {
+      const region = arcRegion.get(index) ?? MAINLAND;
+      const project = projectors[region];
+      const place = region === MAINLAND ? toSheet : panelFits[region].normalize;
+      return arc.map((point) => {
         const metres = project(point);
         if (!metres) {
-          throw new Error(`projection failed inside chapter ${chapter.id} at ${point}`);
+          throw new Error(`projection failed inside chapter ${chapter.id} (${region}) at ${point}`);
         }
-        return normalize(metres);
-      }),
-    );
+        return place(metres);
+      });
+    });
 
-    // ---- simplify, then quantise ---------------------------------------
+    // ---- simplify, then frame, then quantise ---------------------------
     const { arcs: simplified, before, after } = simplifyArcs(projected, TOLERANCE);
+
+    // The frames go in *after* simplification, so a rectangle cannot be
+    // reduced to something that is no longer a rectangle. Simplifying it would
+    // usually keep all four corners and occasionally would not, and "usually"
+    // is not a property to ship a border on.
+    const frames = [];
+    let framePoints = 0;
+    for (const region of PANEL_REGIONS) {
+      if (panelFits[region].debut > chapter.endN) continue; // no such panel yet
+      const ring = panelFrame(region, panelFits[region].debut);
+      simplified.push(ring);
+      framePoints += ring.length;
+      frames.push({ arc: simplified.length - 1, region });
+    }
+
     const { arcs, transform } = quantizeArcs(simplified, QUANT_RESOLUTION);
 
     // Boundary changes whose *start* falls inside the window: the annotation
     // layer, carried here because AHCB's `CHANGE` field is the only record of
-    // why a line moved, and it is exactly what Chapter 3's narration needs.
+    // why a line moved. The insets are included now that they are drawn, and
+    // they are the only reason Chapters 4, 5 and 7 have anything to say at all.
     const changes = source.objects.states.geometries
       .filter(
-        (g) =>
-          placeable(g) &&
-          g.properties.START_N >= chapter.startN && g.properties.START_N <= chapter.endN,
+        (g) => g.properties.START_N >= chapter.startN && g.properties.START_N <= chapter.endN,
       )
       .map((g) => ({
         n: g.properties.START_N,
@@ -189,6 +271,37 @@ async function main() {
       }))
       .sort((a, b) => a.n - b.n);
 
+    const geometries = pruned.objects.states.geometries.map((g) => ({
+      ...g,
+      properties: {
+        ...slimProperties(g.properties),
+        // `t` marks a feature that is still alive when the chapter closes: the
+        // chapter's own edge clips it, not history. Without this flag the date
+        // mask would fade everything out on the chapter's last day and the map
+        // would dissolve into blank paper.
+        t: g.properties.END_N >= chapter.endN ? 1 : 0,
+      },
+    }));
+
+    for (const { arc, region } of frames) {
+      geometries.push({
+        type: 'LineString',
+        arcs: [arc],
+        properties: {
+          id: `${region}_panel`,
+          abbr: '',
+          name: `${region[0].toUpperCase()}${region.slice(1)} panel`,
+          type: 'Inset frame',
+          area: 0,
+          start: panelFits[region].debut,
+          end: recordEndN,
+          // Always terminal: the frame outlives the chapter it first appears
+          // in, so the chapter's edge is what ends it, not history.
+          t: 1,
+        },
+      });
+    }
+
     const bundle = {
       type: 'Topology',
       transform,
@@ -196,17 +309,7 @@ async function main() {
       objects: {
         states: {
           type: 'GeometryCollection',
-          geometries: pruned.objects.states.geometries.map((g) => ({
-            ...g,
-            properties: {
-              ...slimProperties(g.properties),
-              // `t` marks a feature that is still alive when the chapter closes:
-              // the chapter's own edge clips it, not history. Without this flag
-              // the date mask would fade everything out on the chapter's last
-              // day and the map would dissolve into blank paper.
-              t: g.properties.END_N >= chapter.endN ? 1 : 0,
-            },
-          })),
+          geometries,
         },
       },
       meta: {
@@ -219,55 +322,78 @@ async function main() {
         start: chapter.start,
         end: chapter.end,
         sheet: { width: sheet.width, height: sheet.height },
-        projection: 'Albers equal-area conic, EPSG:5070 parameters (d3.geoAlbers, lower 48)',
+        projection:
+          'Composite: Albers equal-area conic (EPSG:5070 parameters) for the lower 48, ' +
+          'Alaska conic (EPSG:3338 parameters), Hawaii conic (ESRI:102007)',
+        panels: PANEL_REGIONS.filter((region) => panelFits[region].debut <= chapter.endN).map(
+          (region) => ({
+            region,
+            rect: PANEL_RECTS[region],
+            scale: panelFits[region].againstMainland,
+          }),
+        ),
         source: 'Newberry Library, Atlas of Historical County Boundaries (CC0 1.0)',
         simplification: TOLERANCE,
         quantisation: QUANT_RESOLUTION,
         stats: {
-          geometries: pruned.objects.states.geometries.length,
+          geometries: geometries.length,
           arcs: arcs.length,
-          pointsBefore: before,
-          pointsAfter: after,
+          pointsBefore: before + framePoints,
+          pointsAfter: after + framePoints,
         },
       },
     };
 
     const json = JSON.stringify(bundle);
-    await writeFile(path.join(OUT_DIR, `${chapter.id}.json`), json);
+    const bytes = await writeJson(path.join(OUT_DIR, `${chapter.id}.json`), json);
 
     // The annotation layer ships separately. It is prose, it is nine per cent
     // of the payload, and nothing on the first tier reads it: the geometry has
     // to arrive fast, the explanation can wait until M2 asks for it.
     const notes = JSON.stringify({ chapter: chapter.id, changes });
-    await writeFile(path.join(OUT_DIR, `${chapter.id}.changes.json`), notes);
+    const notesBytes = await writeJson(path.join(OUT_DIR, `${chapter.id}.changes.json`), notes);
 
     const saved = before > 0 ? (1 - after / before) * 100 : 0;
     console.log(
-      `${chapter.id.padEnd(11)} ${String(bundle.meta.stats.geometries).padStart(3)} geoms  ` +
+      `${chapter.id.padEnd(11)} ${String(geometries.length).padStart(3)} geoms  ` +
         `${String(arcs.length).padStart(4)} arcs  ` +
         `${String(before).padStart(7)} -> ${String(after).padStart(6)} pts (-${saved.toFixed(0)}%)  ` +
-        `${formatKb(json.length).padStart(9)} + ${formatKb(notes.length).padStart(8)} notes`,
+        `${formatKb(bytes).padStart(9)} + ${formatKb(notesBytes).padStart(8)} notes` +
+        `${frames.length ? `  panels ${frames.map((f) => f.region).join('+')}` : ''}`,
     );
 
     manifest.push({
       chapter: chapter.id,
       file: `${chapter.id}.json`,
       notes: `${chapter.id}.changes.json`,
-      bytes: json.length,
-      notesBytes: notes.length,
-      geometries: bundle.meta.stats.geometries,
+      bytes,
+      notesBytes,
+      geometries: geometries.length,
       arcs: arcs.length,
       changes: changes.length,
+      panels: bundle.meta.panels.map((p) => p.region),
     });
   }
 
-  await writeFile(
+  await writeJson(
     path.join(OUT_DIR, 'manifest.json'),
     `${JSON.stringify(
       {
         generated: new Date().toISOString(),
         sheet,
-        projection: 'Albers equal-area conic, EPSG:5070 parameters, lower 48',
+        projection:
+          'Composite: Albers equal-area conic (EPSG:5070 parameters) for the lower 48, ' +
+          'Alaska conic (EPSG:3338 parameters), Hawaii conic (ESRI:102007)',
+        panels: Object.fromEntries(
+          PANEL_REGIONS.map((region) => [
+            region,
+            {
+              rect: PANEL_RECTS[region],
+              scale: panelFits[region].againstMainland,
+              debut: panelFits[region].debut,
+            },
+          ]),
+        ),
         tolerance: TOLERANCE,
         chapters: manifest,
       },

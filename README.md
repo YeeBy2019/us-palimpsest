@@ -99,7 +99,7 @@ dated **1783-09-03** and its last boundary change is **1912-02-14**.
 | 4 Industry | yes | 29 | |
 | 5 Boom and Bust | yes | 10 | Arizona completes the lower forty-eight on 1912-02-14. |
 | 6 WWII | yes | 0 | Static by history: nothing moved between 1912 and 1959. |
-| 7 Superpower | yes | 0 on the mainland | Its two events — Alaska and Hawaii becoming states in 1959 — are insets. See below. |
+| 7 Superpower | yes | 0 | The 1959 statehoods are the last dated events in the record, and they change nothing that is drawn: each inset keeps the outline it has had since 1867 and 1898. See below. |
 | 8 Millennium | yes | 0 | AHCB ends at 2000-12-31; see the TIGER/Line note under *Coverage limits*. |
 
 Two chapters need something the current data does not provide, and neither is a scheduling
@@ -112,8 +112,10 @@ problem:
   chapter is indistinguishable from a broken one from the outside.
 - **Chapters 6, 7 and 8 are plates, not histories.** This is not a gap in the data; it is what the
   record says. After 1912 the outline of the country stops moving, so those chapters cannot be
-  carried by boundary change and have to be carried by something else — cities, events, and the two
-  inset panels.
+  carried by boundary change and have to be carried by something else — cities and events. The
+  inset panels are no help here either: both appear inside Chapter 4, at 1867 and 1898, and are
+  static from the day they appear. So they buy Chapter 4 two visual events and buy Chapters 5–8
+  none at all.
 
 ### What changed from the earlier draft, and why
 
@@ -221,20 +223,52 @@ areas at once. Alaska uses Alaska Albers (EPSG:3338), Hawaii its own conic; the 
 composite layout `d3-geo`'s `geoAlbersUsa` implements. The District of Columbia is 68 square miles —
 at state-level simplification it is a marker and a label, not a polygon.
 
-**An inset appearing is itself a boundary event**, so it is tied to the date it became true rather
-than to load order: Alaska at 1867, Hawaii at 1898. The sheet is **not** pre-sized to hold them — it
-grows when the date reaches them, and the camera reframes with it. Before those years there is no
-inset and no space reserved for one, because there was nothing to inset.
+**The panels hold a fixed place on the sheet, and the sheet does not grow to hold them.** Each
+panel is fitted once, from the whole record, into a rectangle that is open water in every chapter:
+the lower-left corner of the sheet, below the Gulf coast and west of Texas. Measured against the
+projected mainland, each rectangle clears every piece of land by roughly 0.012 sheet units — some
+55 km at the sheet's scale — and that clearance is asserted by exact polygon-to-rectangle
+intersection in `pipeline.test.js`, not by eye. There is therefore nothing to reserve and nothing
+to re-frame: the space is already there. An earlier draft of this document said the sheet grows
+when the date reaches 1867 and the camera reframes with it. That was wrong, and it was wrong for a
+reason worth keeping: the panels were assumed to need room, and nobody had measured the corner.
 
-**The panels do not exist yet, and until they do the inset geometry is excluded from every
-bundle.** A single Albers projection cannot place Alaska or Hawaii — not because it errors, but
-because it does not: it returns finite coordinates that fall outside the sheet the lower forty-eight
-are fitted to, and they get drawn anyway. Measured before the exclusion was applied everywhere it
-needed to be, Alaska left a sliver across the top-left corner of the sheet and cost 6,671 points per
-version, about 44 per cent of those chapters' payload and half their triangulation, on geometry that
-was not on the drawing. The rule and its three application points live in
-`pipeline/lib/placeable.js`. It lifts when the composite projection and the panel layout land — which
-is also when Chapter 7 acquires content.
+**What is tied to the date is the panel's contents, not its place.** Alaska's first geometry is the
+1867-03-30 purchase; Hawaii's is the 1898-07-07 annexation. Until the date cursor reaches them the
+panel is not drawn and the corner stays water. The frame arrives on the same day as the first thing
+inside it, which is why it is hung off the data rather than written down — the rule is "a frame is
+as old as the oldest geometry it contains" — and it never leaves, because a frame is not a
+boundary. An inset appearing is a boundary event; an inset *being there* is cartography.
+
+**Which is just as well, because the panels never change shape.** Alaska's outline is identical in
+all four of its dated versions — department 1867, district 1884, territory 1912, state 1959 — and
+Hawaii's is identical in all three of its own. Hashing the projected coordinates of every inset
+geometry in every bundle collapses **fifteen geometries onto exactly two shapes**. AHCB
+re-registers one outline under a new political name each time; the extent never moves. So what the
+panels contribute is *appearance*, not motion: a corner that was water is Alaska from 1867 on, and
+after that the only thing that changes inside it is the name. That is a smaller contribution than
+"two more chapters' worth of boundary" and it is worth stating at full strength, because it is the
+argument for the annotation layer being a milestone rather than garnish — inside a panel, the
+`CHANGE` field and the label *are* the history, and there is nothing else to show.
+
+**Routing, not exclusion, is what keeps the insets off the mainland sheet.** A single Albers
+projection cannot place Alaska or Hawaii — not because it errors, but because it does not: it
+returns finite coordinates that fall outside the sheet the lower forty-eight are fitted to, and
+they get drawn anyway. Measured before this was handled, Alaska left a sliver across the top-left
+corner of the sheet and cost 6,671 points per version, about 44 per cent of those chapters'
+payload and half their triangulation, on geometry that was not on the drawing.
+
+The first fix for that was a filter: `pipeline/lib/placeable.js` asked "should this be projected?"
+and dropped what failed. That is the wrong shape of guard, and it has been deleted. A filter is
+wrong about a *mainland* feature silently — the feature disappears and the map still looks like a
+map — and it cannot express "Alaska belongs in the Alaska projection", only "Alaska is not
+allowed". The rule is now a routing table, `pipeline/lib/regions.js`: each geometry is assigned a
+region by its id, and each region has its own projector and its own fit. A geometry cannot fail to
+be projected, so the failure mode is no longer *something is missing* but *something is in the
+wrong place* — and wrong-place is visible on screen. `pipeline.test.js` pins both halves: that
+`ak_*` and `hi_*` route to their panels, and that the mainland projection still returns finite
+coordinates for Alaska, which is the exact fact the filter was compensating for and the reason an
+inset drawn by accident used to look plausible.
 
 The projection is fixed for the whole atlas. An anchor must lie exactly beneath the boundary that
 succeeds it; re-projecting per chapter would break that registration deliberately.
@@ -287,9 +321,11 @@ require every quality tier to stay legible.
   bundled state-level record the floor is later still — **1783-09-03** — which is why Chapter 1 has
   no bundle: see *Build status* above.
 - **Nothing moves after 1912.** No state was admitted between Arizona in February 1912 and Alaska in
-  January 1959, and the second of those is an inset. Chapters 6, 7 and 8 therefore draw a country
-  whose outline is fixed, and their content has to come from another layer. This is a fact about
-  American history rather than a shortcoming of the source.
+  January 1959, and the two admissions after that gap move no line either — both are in the insets,
+  and the insets keep the outline they already had. Chapters 6, 7 and 8 therefore draw a lower
+  forty-eight whose outline is fixed alongside two panels that were fixed long before them, so their
+  content has to come from another layer. This is a fact about American history rather than a
+  shortcoming of the source.
 - **AHCB stops at 2000; the record does not.** Chapter 8 runs to the present, so its geometry from
   2000 on comes from **TIGER/Line** and its statistics from **NHGIS**. Those sources publish
   per-census snapshots rather than event-dated intervals, so Chapter 8 interpolates between fixed
@@ -366,8 +402,9 @@ All eight chapters. Chapter selector, per-chapter time scales, anchor layers, tr
 states. Audio stubbed.
 
 Seven of eight chapters are built and navigate; Chapter 1 is blocked on pre-1783 data rather than on
-code, and Chapters 6–8 are boundary-static by history, so the next thing that has to happen for them
-is not another chapter but the inset panels. See *Build status*.
+code. The inset panels are in: both appear inside Chapter 4, at 1867 and 1898, and each is static
+from the day it appears. They are the last new shapes the record draws. See *Projection and the
+insets* for what they do and do not buy, and *Build status*.
 
 ### M2 — Anchors and annotation
 

@@ -46,10 +46,13 @@
  *   `docs/ARCHITECTURE.md`.
  * - **Chapters 6, 7 and 8 are buildable but boundary-static.** No state was
  *   admitted between 1912 and 2000, so nothing inside those windows moves.
- *   They are not empty — each draws the full forty-eight-state plate, and the
- *   all-`aFrom`-zero path is a genuinely different code path from the one the
- *   first four chapters exercise. Their content is not boundaries, though. It
- *   is cities, events and, for Chapter 7, the two inset panels.
+ *   They are not empty — each draws the full forty-eight-state plate plus the
+ *   two inset panels, and the all-`aFrom`-zero path is a genuinely different
+ *   code path from the one the first four chapters exercise. Their content is
+ *   not boundaries, though. It is cities and events. And the panels do not
+ *   rescue them: each panel is static from the day it appears inside Chapter 4,
+ *   because AHCB records every version of Alaska's outline as the same shape
+ *   under a new name. See `pipeline/lib/regions.js` and the README.
  * - `audio` strings are authored and unread; sound is M3.
  *
  * ## The material numbers
@@ -348,14 +351,24 @@ export const CHAPTERS = [
     },
     transition: 'Dots returning inward',
     audio: 'Broadcast, city hum',
-    // Buildable as a plate, but this is the chapter the current data fails
-    // hardest. Its two real boundary events are Alaska (1959-01-03) and Hawaii
-    // (1959-08-21) becoming states, and both are *inset* geometries: they are
-    // not in the lower-48 projection the pipeline fits, so neither reaches the
-    // bundle and neither can be pinned as an anchor. Until the panels are laid
-    // out and unfolded, Chapter 7 has no boundary content at all. The mainland
-    // events that do exist are a river-line exchange between Kansas and
-    // Missouri, which is not a chapter.
+    // Buildable as a plate, and the one chapter whose two dated events are
+    // entirely inset. Alaska (1959-01-03) and Hawaii (1959-08-21) become states
+    // here, and both are `ak_*`/`hi_*` geometries, so both are drawn inside a
+    // panel rather than on the sheet.
+    //
+    // That does not give this chapter boundary content, and it is worth being
+    // exact about why, because the obvious reason is wrong. It is not that the
+    // insets never reach the bundle — they do, now that they are routed rather
+    // than filtered. It is that the outline does not change: hashing the
+    // projected coordinates of every inset geometry shows all eight Alaska
+    // versions collapsing to one shape and all seven Hawaii versions to
+    // another, so a statehood alters the name and nothing that is drawn. Within
+    // a panel, the annotation layer is the only thing that can say anything.
+    //
+    // The mainland events that do exist are a river-line exchange between
+    // Kansas and Missouri, which is not a chapter. Deliberately anchorless,
+    // for the reason given at Chapter 6: there is no earlier line beneath the
+    // plate to leave as sediment.
     built: true,
   }),
   chapter({

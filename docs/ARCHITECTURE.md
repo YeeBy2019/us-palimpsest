@@ -254,7 +254,7 @@ pipeline/             AHCB shapefile -> per-chapter TopoJSON bundles
     topology.js       prune and remap, without rebuilding shared arcs
     simplify.js       Douglas-Peucker that keeps arc endpoints
     quantize.js       the final TopoJSON transform
-    placeable.js      which geometries the sheet can actually hold
+    regions.js        which projection each geometry belongs to
 public/               shipped as it is
   favicon.ico         the mark, re-encoded for the tab bar
   assets/             fonts and textures
@@ -392,48 +392,81 @@ for slippy web maps. Its area error grows as 1/cos²(latitude): about 2× at 45�
 chapter's territory would be mis-weighted in the same direction. Use it for tiles; not for this.
 
 **Alaska and Hawaii are composited insets.** EPSG:3338 (Alaska Albers) for Alaska, a conic of its own
-for Hawaii, arranged in the conventional composite layout — the one `d3-geo`'s `geoAlbersUsa`
-implements, and the one every period US map carried. Forcing one projection across the full latitude
-range is the alternative, and it distorts all three areas at once.
+for Hawaii, in the conventional composite layout — the one every period US map carried. Forcing one
+projection across the full latitude range is the alternative, and it distorts all three areas at
+once.
 
-Two consequences worth stating:
+The three projections are composed here rather than taken from `d3-geo`'s `geoAlbersUsa`, which is
+the obvious candidate and turned out to be unusable for this atlas. `geoAlbersUsa` does not merely
+*place* the insets, it *clips*: it draws Alaska and Hawaii into fixed positions of its own choosing
+and cuts every geometry to the frame it believes you want. Two measured consequences. It silently
+deleted 3,102 points of `or_country` — the 1818–1846 Oregon Country, which is real historical
+territory this atlas has to draw, and whose loss would have been invisible because the remaining
+outline still closes. And it puts Alaska above the lower forty-eight and Hawaii in the middle of
+them, where this sheet wants both in the open water at the lower left; its rectangles are not
+adjustable. Composing three projectors by hand costs one small module and keeps the frames, the
+clipping and the fits under our control.
 
-- **An inset appearing is a boundary event, not a layout choice.** Alaska's panel appears at 1867,
-  Hawaii's at 1898. Before those years there is nothing to inset.
-- **The sheet grows, so the camera has to reframe.** Because the panels unfold rather than being
-  reserved from the start, the sheet's extent changes inside Chapter 4 — twice, at 1867 and 1898.
-  Framing is therefore not one fit-to-paper computation done at load: it re-fits when the sheet
-  changes size, and that re-fit is the visible event. The base extent for the contiguous states is
-  settled at M0, and each panel's extent with it.
+Two consequences worth stating. The first is about dates; the second is the opposite of what this
+document said before it was measured:
+
+- **An inset appearing is a boundary event, not a layout choice.** Alaska's panel appears on
+  1867-03-30, Hawaii's on 1898-07-07 — the purchase and the annexation, not the statehoods. Before
+  those dates there is nothing to inset and the corner stays water.
+- **The sheet does not grow, and the camera does not reframe.** The panels are fitted once, from the
+  whole record, into rectangles that are open water in every chapter: the lower-left corner, below
+  the Gulf coast and west of Texas. Measured against the projected mainland, each rectangle clears
+  every piece of land by about 0.012 sheet units — roughly 55 km at the sheet's scale — and that
+  clearance is asserted by exact polygon-to-rectangle intersection in `pipeline.test.js`, not by eye.
+  So nothing is reserved and nothing is re-fitted: one fit-to-paper computation at load is the whole
+  story, and the framing code stays simple. An earlier version of this section claimed the sheet's
+  extent changed twice inside Chapter 4 and that the re-fit *was* the visible event. It does not and
+  it is not. What is visible is the panel arriving; the paper never moves.
+
+The panels are also static from the day they appear. Alaska's outline is identical in all four of
+its dated versions and Hawaii's in all three of its own — hashing the projected coordinates of every
+inset geometry collapses fifteen geometries onto exactly two shapes. AHCB re-registers one outline
+under a new political name each time the status changes, and a statehood alters nothing that is
+drawn. That is why the insets buy Chapter 4 exactly two visual events and buy Chapters 5–8 none: see
+*Decision log*, and the build-status table in the README.
 
 The District of Columbia, 68 square miles, is a marker and a label at state-level simplification — no
 geometry to derive and none to simplify.
 
 ### A projection that cannot place something does not necessarily fail
 
-The panels do not exist yet, so today the atlas has exactly one sheet and it is fitted to the lower
-forty-eight. Alaska and Hawaii are therefore not merely elsewhere — they are unrepresentable, and
-they have to be excluded rather than merely not looked at. `pipeline/lib/placeable.js` holds that
-rule; it is a module rather than a constant because the failure is silent and deserves its own test.
+`geoAlbers()` is a function of longitude and latitude with no notion of the frame it draws into, so
+it returns finite, plausible coordinates for Nome and Honolulu and reports no error at all. Measured
+against the single-projector version of the pipeline: Alaska normalised to sheet x[-0.575, 0.060]
+y[0.773, 1.251] and Hawaii to x[-0.805, -0.738], on a sheet 1.000 wide and 0.776 high. Hawaii was
+entirely off the paper; Alaska left a sliver across the top-left corner. The cost was the larger
+problem: 6,671 points per version, roughly 44% of those chapters' payload and half their
+triangulation, spent on geometry that was not on the drawing.
 
-Silent is the operative word. `geoAlbers()` is a function of longitude and latitude with no notion of
-the frame it draws into, so it returns finite, plausible coordinates for Nome and Honolulu and
-reports no error at all. Measured against Chapter 7's bundle before the rule was applied to the
-prune: Alaska normalised to sheet x[-0.575, 0.060] y[0.773, 1.251] and Hawaii to x[-0.805, -0.738],
-on a sheet 1.000 wide and 0.776 high. Hawaii was entirely off the paper; Alaska left a sliver across
-the top-left corner. The cost was the larger problem: 6,671 points per version, roughly 44% of those
-chapters' payload and half their triangulation, spent on geometry that was not on the drawing.
+That fact is still why this corner of the pipeline needs defending, and it is the reason the guard
+is not shaped the way it first was. It used to be a filter — `pipeline/lib/placeable.js`, a module
+rather than a constant because the failure is silent and deserved its own test — that asked "can the
+sheet hold this?" and dropped what it could not. A filter is the wrong instrument, for two reasons:
 
-The rule has to be applied in three places, and applying it in one was the original mistake:
+- **It fails silently in the direction that matters.** A filter that is wrong about a *mainland*
+  feature removes it, and the map still looks like a map. The error has no symptom.
+- **It cannot say where anything belongs.** `false` is the only answer it has. "Alaska is not
+  allowed" is expressible; "Alaska goes in the Alaska projection" is not.
 
-| Where | Why |
-| ----- | --- |
-| The sheet fit | Otherwise the panels stretch the sea the mainland is measured against. |
-| The prune | Otherwise the geometry enters the bundle and is drawn. |
-| The annotation | Otherwise the chapter notes describe boundary changes the drawing cannot show. |
+The guard is now a routing table, `pipeline/lib/regions.js`. Every geometry is assigned a region by
+its id — `ak_*`, `hi_*`, everything else — and each region owns a projector and a fit. A geometry
+cannot fail to be projected, so the failure mode is no longer *something is missing* but *something
+is in the wrong place*, and wrong-place is visible on screen. The three application points the
+filter needed (the sheet fit, the prune, the annotation) collapse into one, because the question is
+asked once, at projection time, and the answer is a projector rather than a yes or no.
 
-It lifts when the composite projector and the panel layout land. Deleting it early produces no error
-— only a smudge on the paper and a bundle twice too large.
+It is pinned by test rather than by inspection. `pipeline.test.js` asserts that the panel regions
+route to their own projectors; that the panel rectangles intersect no mainland land, by exact
+polygon-to-rectangle intersection; that no arc is shared between two regions, which is what would
+make routing ambiguous; and — the assertion that preserves the original lesson — that the *mainland*
+projector still returns finite, plausible coordinates for Alaska. That last one states the hazard
+positively, so that anyone who "fixes" the projection into refusing is told they have moved the
+problem rather than solved it.
 
 ## The anchor window
 
@@ -485,19 +518,27 @@ Settled on 2026-10-07:
 - **`ui.css` is linked from `index.html`, not imported from JavaScript.** See *Loading* above. A
   stylesheet imported from a module cannot start downloading until that module and everything
   behind it has run, and the chrome spends that time on screen in the browser's default styling.
-- **The insets unfold when the date reaches them.** The sheet is not pre-sized to hold three panels.
+- **The insets appear when the date reaches them, and hold a place that was always open water.** The
+  sheet is fitted once, from the whole record; the panels occupy the lower-left corner, which is sea
+  in every chapter. Nothing is reserved and nothing is reframed. See *Projection* above.
 - **Only the two chapters in flight are drawn.** See *Exactly two chapters are on the sheet at a
   time* above. The earlier rule showed every loaded layer during a transition, which is the same
   thing at two chapters and six extra plates of ink at seven.
-- **Inset geometry is excluded from bundles until the panels exist**, in the fit, the prune and the
-  annotation. `geoAlbers` places Alaska and Hawaii without complaining, so the exclusion has to be
-  explicit; it was ~44% of Chapters 4–8's payload.
+- **Inset geometry is routed, not excluded.** Each geometry carries a region, each region owns a
+  projector and a fit, and the panels are drawn rather than dropped. `geoAlbers` places Alaska and
+  Hawaii without complaining, so an unguarded single projector cost ~44% of Chapters 4–8's payload
+  on geometry that was not on the drawing; routing keeps them on the drawing, in the right place.
+  See *A projection that cannot place something does not necessarily fail* above.
 - **Chapter 1 has no bundle, and that is a data decision rather than a schedule one.** The
   state-level record begins on 1783-09-03, which is the day the chapter closes, so a bundle cut to it
   is 176 years of blank paper. Colonial boundaries exist in AHCB from 1629 at county level only.
-  It grows at 1867 and again at 1898, and the camera reframes with it. The alternative — reserving
-  the space from the first frame — would have shown an empty panel for a hundred and sixty years and
-  wasted a third of the sheet doing it.
+- **The panels are static once they arrive, and that is a measured fact rather than an assumption.**
+  Alaska's outline is identical in all four of its dated versions and Hawaii's in all three of its
+  own — fifteen geometries, two shapes — so the 1959 statehoods change a name and nothing that is
+  drawn. The insets therefore give Chapter 4 its two visual events, at 1867 and 1898, and give
+  Chapters 5–8 nothing at all. Inside a panel the annotation layer is the only thing that can carry
+  history, which is the argument for M2 being a milestone rather than garnish. See the build-status
+  table in the README.
 - **Post-2000 change comes from a second source**, but not the one first assumed: geometry from
   **TIGER/Line**, statistics and cross-checks from **NHGIS**. The licence difference decides it. See
   *Beyond 2000* above.
@@ -533,7 +574,8 @@ Settled while building M0 (2026-10-07):
 M0 is built end to end for **Chapter 2 Expansion (1783–1848)** and **Chapter 3 Division (1848–1865)** —
 the vertical slice's success criterion is a fifteen-second capture of Chapter 3. Nothing on the
 pre-M0 decision list is outstanding. What remains is implementation-shaped: the remaining six
-chapters' bundles, the sheet growing for the Alaska and Hawaii insets, and the quality tiers with
+chapters' bundles, an annotation layer for the panels — which is now the only carrier of history
+inside them — and the quality tiers with
 their persistence (M5).
 
 ## Attribution
