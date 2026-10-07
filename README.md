@@ -57,9 +57,16 @@ So the rule is a scoped yes:
   hatch, never a filled translucent shape.
 - **The transition does double duty.** The dots that disperse the outgoing boundary are the same
   dots that then lie down as hatching. Dissolve and deposit are one motion, not two.
-- **Nothing stacks forever.** An anchor decays into pure paper texture after two chapters and stops
-  being geometry — which also bounds fill-rate cost.
-- **At most two or three anchors are visible at any moment.**
+- **An anchor is legible for two more chapters, then it is only paper.** The chapter that owns an
+  anchor draws it at full strength; the two chapters after that draw it at decreasing hatch density;
+  from the third chapter on it is paper texture — no geometry, no fill-rate cost.
+- **That window is the visibility cap, not a second rule.** Because the window is two chapters, the
+  sheet never carries more than three anchors at once. "At most two or three visible" is the
+  arithmetic of the rule above.
+- **The window is counted in chapters, not years.** Chapters are the unit of navigation and carry
+  their own time scales. Counting in years would be incoherent — the 1783 anchor would persist for
+  82 years across Chapters 2 and 3, while one in Chapter 6 would be gone in four. What the
+  palimpsest describes is page distance: how many pages ago you saw the ink.
 
 This is what the name means: the paper is reused, and the earlier ink is still faintly legible.
 
@@ -116,14 +123,20 @@ Eight chapters. Contiguous, non-overlapping: every year belongs to exactly one c
 | Layer | Choice | Notes |
 | ----- | ------ | ----- |
 | Renderer | Three.js | WebGL2 |
+| Projection | Albers Equal-Area Conic (EPSG:5070) | The published national grid — what the USGS, the Census Bureau and the *National Atlas* use. Alaska and Hawaii are drawn as insets in their own Albers |
 | Shaders | GLSL | Procedural paper, engraved-edge wobble, hatch, dot dispersal |
-| Camera and motion | GSAP | |
+| Post-processing | Custom GLSL composite | Tone map, paper grain, grade and sharpen-upscale in one pass. No `EffectComposer` |
+| Camera and motion | GSAP | `timeline` for authored sequences, `quickTo` for continuous state, `set` for snaps — see the note below |
 | Data format | Interval-coded TopoJSON | Simplified per zoom tier, quantized |
 | Labels | MSDF text (`troika-three-text`) | Resolution-independent, holds up at any zoom |
 | Audio | Web Audio API | Per-chapter ambience, crossfaded; starts on first user gesture |
-| Build | Vite, TypeScript | |
+| Build | Vite, plain JavaScript | ES modules. No TypeScript: the shader work lives in injected GLSL strings and uniform objects, where types earn little and cost friction |
 | Quality | ESLint, Prettier, Vitest | Tests target the data pipeline, which is the risky part |
 | Deploy | Vercel | See the note on GitHub Pages |
+
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) specifies the render passes, the shared-uniform
+contract, the quality governor and the loading order, and gives the reasoning behind the rows
+above.
 
 ### The data pipeline is the real work
 
@@ -142,6 +155,50 @@ Each feature keeps its `START_DATE` / `END_DATE`, so boundaries are derived per 
 rather than pre-baked per date. There are no snapshot piles to ship — which is also how the
 reference project works.
 
+### Animation: GSAP, and why it is not hand-rolled
+
+An earlier draft of this table said *no animation library*, following the reference. That was
+reversed. The reference hand-rolls its easing because it never has to choreograph overlapping
+sequences — its cinematic mode cuts between six composed shots with a single progress value. **M4 is
+the case that changes the answer**: flying the camera from the map into a historical scene is
+authored, multi-track motion — overlapping timelines, staggered elements, hand-tuned curves — which
+is what a timeline library is for. Adopting it at M0 means the camera director is written once, in
+the vocabulary M4 already needs.
+
+Three uses, kept distinct:
+
+- **Authored sequences** — chapter transitions, the camera director, the dot dispersal — are
+  `gsap.timeline`.
+- **Continuous state** — chapter weights, the date cursor, the camera following a drag — is
+  `gsap.quickTo`, which re-aims at a moving target every frame instead of rebuilding a tween.
+- **Snaps** — deep links and chapter jumps — are `gsap.set`.
+
+### Projection and the insets
+
+The map is drawn in the **Albers Equal-Area Conic projection** (EPSG:5070, NAD83 / Conus Albers).
+It is the standard for country-scale US maps — the USGS, the Census Bureau and the *National Atlas
+of the United States* all use it — for a reason specific to us: it preserves area exactly, so a
+state's visual weight matches its real size. Mercator preserves angle instead, which is what makes
+square map tiles possible and why it is the standard for web maps; but its area error grows as
+1/cos²(latitude), reaching about 4× at 60°N. Drawn in Mercator, Alaska would read several times its
+true size against the lower forty-eight. That is the wrong tool for a map whose entire subject is
+territory.
+
+**Alaska and Hawaii are inset panels**, not part of the main field. This is the period-correct
+solution — historical US maps carried them that way — and the one the projection literature
+recommends, since forcing a single projection across the full latitude range distorts all three
+areas at once. Alaska uses Alaska Albers (EPSG:3338), Hawaii its own conic; the arrangement is the
+composite layout `d3-geo`'s `geoAlbersUsa` implements. The District of Columbia is 68 square miles —
+at state-level simplification it is a marker and a label, not a polygon.
+
+**An inset appearing is itself a boundary event**, so it is tied to the date it became true rather
+than to load order: Alaska at 1867, Hawaii at 1898. The sheet is **not** pre-sized to hold them — it
+grows when the date reaches them, and the camera reframes with it. Before those years there is no
+inset and no space reserved for one, because there was nothing to inset.
+
+The projection is fixed for the whole atlas. An anchor must lie exactly beneath the boundary that
+succeeds it; re-projecting per chapter would break that registration deliberately.
+
 ### Why not GitHub Pages
 
 Pages caps a site at 1 GB, a single file at 100 MB, and does not support Git LFS. That is the wrong
@@ -159,9 +216,11 @@ require every quality tier to stay legible.
 
 - **Newberry Library — Atlas of Historical County Boundaries (AHCB)**, John H. Long et al., Dr.
   William M. Scholl Center for American History and Culture. Coverage
-  **1629-03-04 → 2000-12-31**, dated to the day, WGS84. The national state and territory synthesis
-  begins in 1783; county coverage reaches back to 1629. This is the upstream source for the two
-  entries below.
+  **1629-03-04 → 2000-12-31**, dated to the day, WGS84; **all fifty states and the District of
+  Columbia**, Alaska and Hawaii included. The national state and territory synthesis begins in 1783;
+  county coverage reaches back to 1629. The national data files were released in 2012, all fifty
+  states were documented by 2010, and the project is now closed. This is the upstream source for the
+  two entries below.
 - **lmullen/historical-us-boundaries** — an interactive map over the same data, covering
   **1783–1912** (per the project page and the map's own slider domain). Worth taking two things:
   its `CHANGE` field holds a human-readable explanation of each boundary change, and `cw.csv`
@@ -170,6 +229,14 @@ require every quality tier to stay legible.
   sanity-checking derived geometry.
 - **OpenHistoricalMap** — an OSM-style historical map that also ingests AHCB. Worth evaluating as a
   cross-check.
+- **NHGIS / IPUMS (University of Minnesota)** — boundary files for states and counties back to 1790,
+  every census unit from 1990, and the population tables that would drive city lights and settlement
+  density. Free of charge, but a **limited licence**: citation required, redistribution not permitted
+  without permission. That is why it supplies statistics and cross-checks rather than the geometry we
+  ship.
+- **TIGER/Line (US Census Bureau)** — the modern boundary source, and the one we ship. It is not
+  copyrighted and may be used in a product with acknowledgement. NHGIS's own files from 1990 on are
+  a light repackaging of it, so this is the same information under a simpler licence.
 - **American Panorama**, **Chronicling America** — references for interaction patterns and for
   event and newspaper metadata.
 
@@ -177,24 +244,48 @@ require every quality tier to stay legible.
 
 - **Nothing before 1629.** Chapter 1 opens in 1607 for the narrative, but boundary geometry only
   exists from 1629. Pre-1629 is represented by settlement lights, never by filled territory.
-- **Nothing authoritative after 2000.** Boundaries are effectively static from then on. Chapter 8
-  renders contemporary geometry and treats the period as narrative rather than territorial change.
-- **Contiguous United States only.** The Mullen map excludes Alaska, Hawaii, and DC; AHCB covers
-  them in separate datasets. Decide per chapter whether to include them.
+- **AHCB stops at 2000; the record does not.** Chapter 8 runs to the present, so its geometry from
+  2000 on comes from **TIGER/Line** and its statistics from **NHGIS**. Those sources publish
+  per-census snapshots rather than event-dated intervals, so Chapter 8 interpolates between fixed
+  states instead of growing continuously. Honest rather than a compromise: post-2000 change is real
+  but thin, and the geometry barely moves.
+- **Alaska, Hawaii and the District of Columbia cannot simply be dropped.** The Mullen map excludes
+  them, and an earlier draft of this document inherited that scope without examining it. AHCB itself
+  covers all fifty states and the District. Excluding them is not historically neutral: the Alaska
+  purchase (1867) and the annexation of Hawaii (1898) both fall inside Chapter 4; Chapter 6 opens on
+  Pearl Harbor; the Aleutian campaign of 1942–43 is the only fighting on North American soil; both
+  become states in 1959, inside Chapter 7; and the capital has been in the District since 1800, with
+  Alexandria County retroceded to Virginia in 1846 — a genuine boundary change. Both *that* they
+  appear and *how* they are drawn are now settled: inset panels for Alaska and Hawaii, a marker for
+  the District. See *Projection and the insets* above.
 
 ## Licensing
 
 **Code: MIT.** See `LICENSE`.
 
-**Data: not MIT.** AHCB was originally published under CC BY-NC-SA, and some secondary sources —
-including rOpenSci's `USAboundaries` documentation — still quote that label. It is superseded. The
-Newberry now states that the data may be reused "for any lawful purpose, commercial or
-non-commercial, without licensing or permission fees to the library", and that stale CC notices left
-in old files "can be ignored".
+**Data: CC0 1.0, and no longer ambiguous.** AHCB was originally published under CC BY-NC-SA, and some
+secondary sources — including rOpenSci's `USAboundaries` documentation — still quote that label. It
+has since been superseded twice over: the Newberry's rebuilt site (2025) states plainly that the
+Atlas data is released under **Creative Commons CC0 1.0 Universal (Public Domain Dedication)** and
+"may be used without requesting permission".
 
-The practical consequence: the data is free to use, but it must not be swept under our MIT
-declaration. Boundary data lives in its own directory with its own `NOTICE` file, and the source is
-credited in-product. Attribution is owed in spirit even where the current terms do not demand it.
+That closes the question an earlier draft of this document left open. CC0 is a public-domain
+dedication, so the data can live inside a repository whose code is MIT without either licence
+touching the other — the two no longer need to be kept apart out of caution.
+
+We still keep boundary data in its own directory with its own `NOTICE` file, and credit the source
+in-product. Not because the terms demand it — they do not — but because forty years of session-law
+transcription by named people should not become anonymous, and a compilation of this quality
+deserves to be cited.
+
+**The modern sources are not CC0, and are treated as what they are.** AHCB's openness is the
+exception rather than the rule. **TIGER/Line** is not copyrighted and may be redistributed with a
+Census Bureau acknowledgement, so that is what Chapter 8's geometry ships as. **NHGIS** is free of
+charge but is under a limited licence: citation required, redistribution not permitted without
+permission, and altered data not redistributable without renaming the dataset and shipping
+FGDC-compliant metadata. So NHGIS supplies statistics and cross-checks and never shipped geometry —
+its 1990-onward boundary files are a light repackaging of TIGER/Line in any case. Both sets of terms,
+with the required citations, are recorded in `NOTICE.md`.
 
 **Art and audio assets: to be decided.** Original illustration and sound work is ours to license.
 Third-party samples must be CC0 or explicitly cleared, and recorded in `NOTICE`.
@@ -260,16 +351,22 @@ fallback, deployment.
 
 ## Development
 
-Not scaffolded yet. Intended layout:
+Not scaffolded yet. The module layout, the render passes, the quality governor and the loading
+order are specified in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); in summary:
 
 ```
 src/
-  chapters/     chapter definitions: years, material, anchors, audio, camera
-  data/         per-chapter TopoJSON bundles (generated, not committed)
-  shaders/      paper, ink, hatching, dot dispersal
-  scene/        renderer, camera, material library
-pipeline/       shapefile to TopoJSON build scripts
-public/audio/   per-chapter ambience
+  main.js         boot, the frame loop, input, the glue between systems
+  core/           render passes, the composite, one set of uniforms, loaders
+  env/            chapter state: weights, palette, date -> the shared uniforms
+  world/          paper, boundaries, anchors, labels, camera
+  fx/             dots, city lights, ink bloom
+  timeline/       the eight chapters and their narration
+  audio/          per-chapter ambience
+  ui/             loader, chapter cards, selector, dock, deep links
+pipeline/         AHCB shapefile -> per-chapter TopoJSON bundles
+public/assets/    fonts and textures that ship as-is
+data/             generated chapter bundles (not committed)
 ```
 
 ```
@@ -283,7 +380,10 @@ npm run build
 
 - [Chartogne-Taillet](https://chartogne-taillet.com/en) — Immersive Garden, with Bruno Simon and
   Mooders. Art direction and transition reference.
-- [sakura-fantasy](https://github.com/billpwchan/sakura-fantasy) — time as the core of the scene.
+- [sakura-fantasy](https://github.com/billpwchan/sakura-fantasy) — Bill Chan. Technical architecture
+  reference: a plain-JavaScript three.js scene with no framework, one shared uniform set, an
+  adaptive render scale, and a single transition device. What we take from it, and what we do not,
+  is set out in `docs/ARCHITECTURE.md`.
 - [Bruno Simon](https://bruno-simon.com/) — creative Three.js.
 - [American Panorama](https://dsl.richmond.edu/panorama/) — interactive historical atlas.
 - *America: The Story of Us* (History Channel, 2010) — chapter structure reference.
