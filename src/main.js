@@ -21,7 +21,11 @@ import { buildBoundaries } from './world/boundaries.js';
 import { applyParallax, createCamera, frameSheet, worldPerCssPixel } from './world/camera.js';
 import { buildPaper } from './world/paper.js';
 
-import './ui/ui.css';
+// `ui.css` is deliberately not imported here. It is a `<link>` in `index.html`,
+// so the browser starts fetching it while it is still parsing the page; from
+// here it could not begin until this module and three.js had been downloaded
+// and run, and the chrome would spend that time on screen in the browser's own
+// default style. See the `@layer boot` block in `index.html`.
 
 /**
  * How many anchors can be on the sheet at once.

@@ -104,6 +104,29 @@ Two tiers, in this order:
 2. **Behind it.** The remaining chapters, higher-detail geometry, labels and audio, streamed in
    while the first chapter is being read. The reference upgrades its boat and props the same way.
 
+### The stylesheet is linked from the HTML, not imported from JavaScript
+
+`ui.css` is a `<link>` in `index.html`, not an `import` in `src/main.js`. Imported from JavaScript it
+cannot begin downloading until the module graph behind it has been fetched and executed — here, that
+means waiting for three.js — and the chrome is on screen in the browser's own default styling for
+that whole time. It was: a white page with an Arial heading, a blue range input and two default
+buttons. Measured at three frames spanning 52 ms on localhost, and at 195 frames spanning 3.2 s
+under a throttled connection.
+
+Linked from `<head>` the sheet is render-blocking, which is the point: the browser paints nothing
+until it lands, so there is no unstyled frame to paint. A production build already behaved this way,
+because one emits the sheet as a `<link>` in the head regardless of how the source imported it — so
+the flash was development-only, which is also why it survived review. Two consequences:
+
+- The link carries `?direct`, which is how Vite's dev server is told to answer with CSS rather than
+  with a module that injects it. A `<link>` given a JavaScript module refuses it, and the app would
+  then be unstyled in development and nowhere else. A build resolves the path and drops the suffix.
+- `<head>` also carries a small `@layer boot` block that paints the paper and hides the chrome, for
+  when the sheet fails outright. It sits in a cascade layer so that it loses to `ui.css` wherever a
+  bundler decides to put it — unlayered declarations beat layered ones — instead of depending on
+  arriving second. Checked by blocking the request: the page degrades to a plain sheet with the plate
+  still drawn on it, and no default-styled controls anywhere.
+
 ### Warming the shaders is not optional on Windows
 
 This is the single most important operational note in this document, and it is a live hazard for
@@ -400,6 +423,9 @@ Settled on 2026-10-07:
   something a tab bar should fetch. It is now 16/32/48 in a container whose entries match their
   payload, with the artwork cropped to its own bounding box and padded back to square; the source
   left 43% of its height empty, which would have put the map in a third of a 16 px tab.
+- **`ui.css` is linked from `index.html`, not imported from JavaScript.** See *Loading* above. A
+  stylesheet imported from a module cannot start downloading until that module and everything
+  behind it has run, and the chrome spends that time on screen in the browser's default styling.
 - **The insets unfold when the date reaches them.** The sheet is not pre-sized to hold three panels.
   It grows at 1867 and again at 1898, and the camera reframes with it. The alternative — reserving
   the space from the first frame — would have shown an empty panel for a hundred and sixty years and

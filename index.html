@@ -17,8 +17,55 @@
     <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32" />
     <!-- iOS flattens transparency to black, so this one carries its own plate. -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-    <!-- The stylesheet is imported from `src/main.js` rather than linked here,
-         so that Vite bundles it as part of the module graph. -->
+    <!-- What to wear if `ui.css` never arrives.
+
+         The stylesheet is linked from `<head>` below, which makes it
+         render-blocking: the browser paints nothing until it lands, so in the
+         ordinary case there is no unstyled frame to see. But a stylesheet can
+         also fail, and a failed one unblocks rendering and leaves the browser's
+         defaults as the only styling — a heading in Arial, a blue range input,
+         two default buttons, on white. That is what this block covers: it paints
+         the paper and keeps the chrome out of sight until there is a sheet to
+         print it on. Verified by blocking the request outright, which degrades
+         to a plain sheet with the plate still drawn on it.
+
+         The rules sit in a cascade layer deliberately. Unlayered declarations
+         always beat layered ones, so `ui.css` wins here wherever a bundler
+         decides to put it; without the layer this would quietly depend on
+         arriving second. -->
+    <style>
+      @layer boot {
+        html,
+        body {
+          margin: 0;
+          overflow: hidden;
+          /* A copy of `--paper-deep`, which is defined in the file that may not
+             have loaded. Kept in step with the renderer's clear colour, as that
+             file's own copy is. */
+          background: #d8c7a4;
+          color: #2f261c;
+        }
+
+        .chrome,
+        .card,
+        .loader,
+        .fatal {
+          display: none;
+        }
+      }
+    </style>
+    <!-- Linked rather than imported from `src/main.js`, so the preload scanner
+         finds it while the HTML is still being parsed. Imported from JavaScript,
+         the sheet could not start downloading until `main.js` and everything
+         behind it — three.js included — had been fetched and run, and the chrome
+         spent that time on screen in the browser's own default style.
+
+         `?direct` is a dev-server requirement: without it Vite answers with a
+         JavaScript module that injects the styles, which a `<link rel=
+         "stylesheet">` cannot use — it would be refused and the app would be
+         unstyled in development and nowhere else. A production build resolves
+         the path, drops the suffix and emits the bundled asset. -->
+    <link rel="stylesheet" href="/src/ui/ui.css?direct" />
   </head>
   <body>
     <!-- The world. Everything else on this page is DOM: the loader, the cards,
