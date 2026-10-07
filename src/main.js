@@ -3,8 +3,8 @@
  *
  * The order here is the loading order, and the loading order is the point: the
  * opening chapter's geometry, the paper and the outlines are needed for the
- * first frame; everything else — the other chapter, the annotation layer, a
- * sound bed — streams in behind a picture that is already worth looking at.
+ * first frame; everything else — the remaining chapters, the annotation layer,
+ * a sound bed — streams in behind a picture that is already worth looking at.
  */
 
 import * as THREE from 'three';
@@ -161,13 +161,24 @@ async function boot() {
       slot.uniforms.uWeightScale.value = anchor ? anchor.weight : 0.6;
     }
 
-    // Hide the layers that are not being read, so a chapter that shares a
-    // boundary version with its neighbour cannot draw it twice.
+    // Visibility is "the one being read", plus the one arriving while a
+    // transition is in flight — and nothing else.
+    //
+    // This used to read `settled ? active : true`, which was written when the
+    // atlas had two chapters and showing both of them was the same thing as
+    // showing the right two. At seven it is not: every loaded chapter would be
+    // drawn at once, so the 1803 Mississippi line came back across the middle
+    // of the 1989 map and the ink went about twice as dark for the length of
+    // the dispersal. The lesson generalises — "all of them" is only ever
+    // correct while the set is small enough to be the same as "the two that
+    // matter".
     const settled = !state.isTransitioning;
+    const reading = state.chapter.id;
+    const arriving = state.partner?.id ?? null;
     for (const [id, layer] of layers) {
-      const active = id === state.chapter.id;
-      layer.group.visible = settled ? active : true;
-      layer.dots.points.visible = settled ? active : true;
+      const visible = settled ? id === reading : id === reading || id === arriving;
+      layer.group.visible = visible;
+      layer.dots.points.visible = visible;
     }
 
     for (const layer of layers.values()) {

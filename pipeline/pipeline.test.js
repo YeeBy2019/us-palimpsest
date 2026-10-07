@@ -14,6 +14,7 @@ import { geoMercator } from 'd3-geo';
 import { CHAPTERS, isoToN, isoToYear } from '../src/timeline/chapters.js';
 import { decodeArcs, ringArea } from '../src/lib/topojson.js';
 import { createProjection, fitSheet } from './lib/project.js';
+import { placeable } from './lib/placeable.js';
 import { quantizeArcs } from './lib/quantize.js';
 import { simplifyArc } from './lib/simplify.js';
 
@@ -203,6 +204,62 @@ describe('projection and the sheet', () => {
     ];
     expect(ringArea(ccw)).toBeGreaterThan(0);
     expect(ringArea([...ccw].reverse())).toBeLessThan(0);
+  });
+});
+
+describe('the insets are excluded, and must stay excluded until they have panels', () => {
+  const geometry = (id) => ({ properties: { ID: id } });
+
+  it('rejects the Alaska and Hawaii features and accepts everything else', () => {
+    for (const id of ['ak_dept', 'ak_district', 'ak_terr', 'ak_state', 'hi_annexation', 'hi_terr', 'hi_state']) {
+      expect(placeable(geometry(id)), id).toBe(false);
+    }
+    for (const id of ['wa_state', 'tx_republic', 'dc', 'it_indianterr', 'er_triangleuft']) {
+      expect(placeable(geometry(id)), id).toBe(true);
+    }
+  });
+
+  it('lands them outside the sheet without ever failing, which is why the rule has to be explicit', () => {
+    // This test does not guard `placeable` — it is the reason `placeable`
+    // exists. The lower-48 projection does not fail on Alaska: it returns
+    // finite, plausible numbers that simply are not on the paper. Anchorage
+    // comes back at y 1.09 and Nome at y 1.28 against a sheet half that tall,
+    // Honolulu at x -0.92 against a sheet one unit wide, while Seattle sits at
+    // 0.03, 0.62, inside. Nothing in the pipeline could have noticed.
+    const project = createProjection();
+
+    const mainland = [
+      [-124.7, 48.4], // Cape Flattery
+      [-66.9, 44.8], // eastern Maine
+      [-80.5, 25.1], // Miami
+      [-117.1, 32.5], // San Diego
+      [-97.5, 25.8], // the Rio Grande mouth
+    ].map(project);
+
+    const { normalize, sheet } = fitSheet(mainland);
+
+    const insets = [
+      [-149.9, 61.2], // Anchorage
+      [-165.4, 64.5], // Nome
+      [-157.9, 21.3], // Honolulu
+    ];
+
+    for (const [lon, lat] of insets) {
+      const point = project([lon, lat]);
+      expect(point, `${lat}N ${lon}E should project without complaint`).not.toBeNull();
+      expect(Number.isFinite(point[0]) && Number.isFinite(point[1])).toBe(true);
+
+      const [x, y] = normalize(point);
+      const inside = x >= 0 && x <= sheet.width && y >= 0 && y <= sheet.height;
+      expect(inside, `${lon},${lat} normalised to ${x},${y}, which is on the sheet`).toBe(false);
+    }
+
+    // And the control, so a sheet that swallowed everything could not pass this.
+    const [sx, sy] = normalize(project([-122.33, 47.61]));
+    expect(sx).toBeGreaterThan(0);
+    expect(sx).toBeLessThan(sheet.width);
+    expect(sy).toBeGreaterThan(0);
+    expect(sy).toBeLessThan(sheet.height);
   });
 });
 

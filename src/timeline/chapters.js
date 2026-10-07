@@ -25,6 +25,35 @@
  * allowed a hard hue shift: Division (dark red), WWII (radar green) and
  * Millennium (screen white). Because the shift is rare, it lands.
  *
+ * ## What `built` means, and why the eight chapters do not all carry one
+ *
+ * `built` says "a bundle for this chapter exists on disk", and the pipeline
+ * skips every chapter without it. It is a function of the *data*, not of the
+ * schedule: a chapter is buildable when AHCB has something to draw inside its
+ * window.
+ *
+ * Measured against the bundled state-level record, that splits the atlas in
+ * two. The record's earliest feature is dated 1783-09-03 and its last boundary
+ * change is 1912-02-14, so:
+ *
+ * - **Chapter 1, Founding (1607–1783) is not buildable and stays off.** Every
+ *   one of the fifteen features that reaches its window starts on 1783-09-03 —
+ *   the day the chapter *closes*. Cut to that window the sheet would be blank
+ *   for all one hundred and seventy-six years and then flicker into a map on
+ *   the last frame. AHCB does hold colonial boundaries, but from 1629 onward
+ *   and at county level; drawing them means adopting a second, much larger
+ *   dataset, and county geometry is a stated non-goal for now. See
+ *   `docs/ARCHITECTURE.md`.
+ * - **Chapters 6, 7 and 8 are buildable but boundary-static.** No state was
+ *   admitted between 1912 and 2000, so nothing inside those windows moves.
+ *   They are not empty — each draws the full forty-eight-state plate, and the
+ *   all-`aFrom`-zero path is a genuinely different code path from the one the
+ *   first four chapters exercise. Their content is not boundaries, though. It
+ *   is cities, events and, for Chapter 7, the two inset panels.
+ * - `audio` strings are authored and unread; sound is M3.
+ *
+ * ## The material numbers
+ *
  * A note on `hatchScale`, because the numbers look extreme against a paper map's
  * fashions. Real engraving runs to hundreds of lines per inch, which is far below
  * one screen pixel, so the useful range here is the range in which hatching is
@@ -107,6 +136,11 @@ export const CHAPTERS = [
     },
     transition: 'Ink blooming across paper',
     audio: 'Church bell, sawing',
+    // Not buildable against the current record — see the long note at the head
+    // of this file. Every feature that reaches this window begins on its last
+    // day, so a bundle cut to it is 176 years of blank paper. Left off rather
+    // than shipped empty, because an empty chapter is indistinguishable from a
+    // broken one from the outside.
     built: false,
   }),
   chapter({
@@ -204,7 +238,23 @@ export const CHAPTERS = [
     },
     transition: 'Soot and sparks drifting',
     audio: 'Steam rhythm, rail rumble',
-    built: false,
+    built: true,
+    anchors: [
+      {
+        id: 'dakota-1889',
+        date: '1889-11-02',
+        label: 'Four states in nine days',
+        detail:
+          'One territory becomes two: Dakota is split and North and South Dakota are admitted the same day, with Montana following six days later and Washington three days after that.',
+      },
+      {
+        id: 'utah-1896',
+        date: '1896-01-04',
+        label: 'Utah admitted',
+        detail:
+          'Utah enters the Union as the forty-fifth state, filling the interior. Only Oklahoma, New Mexico and Arizona are still outside it, and the unbroken federal territory the century opened with has all but gone.',
+      },
+    ],
   }),
   chapter({
     id: 'boom',
@@ -228,7 +278,23 @@ export const CHAPTERS = [
     },
     transition: 'Grit flaking off the page',
     audio: 'Jazz, city hum, tumbleweed',
-    built: false,
+    built: true,
+    anchors: [
+      {
+        id: 'oklahoma-1907',
+        date: '1907-11-16',
+        label: 'Oklahoma admitted',
+        detail:
+          'Oklahoma Territory and Indian Territory are joined and admitted as a single state, the forty-sixth — the last large block of the map to be given a state boundary.',
+      },
+      {
+        id: 'arizona-1912',
+        date: '1912-02-14',
+        label: 'The outline stops moving',
+        detail:
+          'Arizona is admitted six weeks after New Mexico, and the forty-eight contiguous states are complete. Every chapter after this one draws the same coast, which is why the atlas has to change its subject matter to keep time visible.',
+      },
+    ],
   }),
   chapter({
     id: 'wwii',
@@ -252,7 +318,13 @@ export const CHAPTERS = [
     },
     transition: 'Dots pulsing outward like radar',
     audio: 'Radio static, engines',
-    built: false,
+    // Buildable, and deliberately anchorless. Not one boundary in this window
+    // moves: the wartime states are the ones Arizona completed in 1912, so
+    // there is no earlier line to leave as sediment — a pinned anchor here
+    // would draw the live map's own outline a second time, a fraction of a
+    // pixel off itself, which reads as a printing fault rather than as memory.
+    // Whatever carries this chapter will be events, not territory.
+    built: true,
   }),
   chapter({
     id: 'superpower',
@@ -276,7 +348,15 @@ export const CHAPTERS = [
     },
     transition: 'Dots returning inward',
     audio: 'Broadcast, city hum',
-    built: false,
+    // Buildable as a plate, but this is the chapter the current data fails
+    // hardest. Its two real boundary events are Alaska (1959-01-03) and Hawaii
+    // (1959-08-21) becoming states, and both are *inset* geometries: they are
+    // not in the lower-48 projection the pipeline fits, so neither reaches the
+    // bundle and neither can be pinned as an anchor. Until the panels are laid
+    // out and unfolded, Chapter 7 has no boundary content at all. The mainland
+    // events that do exist are a river-line exchange between Kansas and
+    // Missouri, which is not a chapter.
+    built: true,
   }),
   chapter({
     id: 'millennium',
@@ -302,7 +382,12 @@ export const CHAPTERS = [
     },
     transition: 'A stream of light data',
     audio: 'Keyboard, city hum',
-    built: false,
+    // The chapter runs to the present, but the record stops at 2000-12-31, so
+    // there is nothing here to move either — and no anchors, for the same
+    // reason as Chapter 6. Note the endpoint: `to` is the last day AHCB can
+    // speak to, not the present day. The README's "1989–present" is the
+    // narrative reading of the chapter, not the extent of its geometry.
+    built: true,
   }),
 ];
 

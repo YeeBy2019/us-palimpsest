@@ -85,6 +85,36 @@ Eight chapters. Contiguous, non-overlapping: every year belongs to exactly one c
 | 7 | Superpower | 1945–1989 | 11 Superpower | Radar green decaying toward paper | Dots returning inward | Broadcast, city hum |
 | 8 | Millennium | 1989–present | 12 Millennium | Clean screen white, survey blue | A stream of light data | Keyboard, city hum |
 
+### Build status
+
+Seven of the eight chapters have geometry. What a chapter can show is a property of the data,
+not of the schedule, and the state-level record is bounded at both ends: its earliest feature is
+dated **1783-09-03** and its last boundary change is **1912-02-14**.
+
+| Chapter | Geometry | Boundary change inside the window | Notes |
+| ------- | -------- | --------------------------------- | ----- |
+| 1 Founding | none | — | AHCB's state-level synthesis begins at 1783, on this chapter's closing day. See below. |
+| 2 Expansion | yes | 108 features begin | |
+| 3 Division | yes | 63 | |
+| 4 Industry | yes | 29 | |
+| 5 Boom and Bust | yes | 10 | Arizona completes the lower forty-eight on 1912-02-14. |
+| 6 WWII | yes | 0 | Static by history: nothing moved between 1912 and 1959. |
+| 7 Superpower | yes | 0 on the mainland | Its two events — Alaska and Hawaii becoming states in 1959 — are insets. See below. |
+| 8 Millennium | yes | 0 | AHCB ends at 2000-12-31; see the TIGER/Line note under *Coverage limits*. |
+
+Two chapters need something the current data does not provide, and neither is a scheduling
+problem:
+
+- **Chapter 1 has no geometry at all.** Every feature that reaches its window starts on its closing
+  day, so a bundle cut to it would be one hundred and seventy-six years of blank paper followed by a
+  map on the last frame. AHCB does hold colonial boundaries, but from 1629 and at county level;
+  drawing them means adopting a second, much larger dataset. Left off deliberately — an empty
+  chapter is indistinguishable from a broken one from the outside.
+- **Chapters 6, 7 and 8 are plates, not histories.** This is not a gap in the data; it is what the
+  record says. After 1912 the outline of the country stops moving, so those chapters cannot be
+  carried by boundary change and have to be carried by something else — cities, events, and the two
+  inset panels.
+
 ### What changed from the earlier draft, and why
 
 - **The documentary's episode ranges overlap and leave a gap.** Westward (1803–1860s) and Division
@@ -196,6 +226,16 @@ than to load order: Alaska at 1867, Hawaii at 1898. The sheet is **not** pre-siz
 grows when the date reaches them, and the camera reframes with it. Before those years there is no
 inset and no space reserved for one, because there was nothing to inset.
 
+**The panels do not exist yet, and until they do the inset geometry is excluded from every
+bundle.** A single Albers projection cannot place Alaska or Hawaii — not because it errors, but
+because it does not: it returns finite coordinates that fall outside the sheet the lower forty-eight
+are fitted to, and they get drawn anyway. Measured before the exclusion was applied everywhere it
+needed to be, Alaska left a sliver across the top-left corner of the sheet and cost 6,671 points per
+version, about 44 per cent of those chapters' payload and half their triangulation, on geometry that
+was not on the drawing. The rule and its three application points live in
+`pipeline/lib/placeable.js`. It lifts when the composite projection and the panel layout land — which
+is also when Chapter 7 acquires content.
+
 The projection is fixed for the whole atlas. An anchor must lie exactly beneath the boundary that
 succeeds it; re-projecting per chapter would break that registration deliberately.
 
@@ -243,7 +283,13 @@ require every quality tier to stay legible.
 ### Coverage limits, stated plainly
 
 - **Nothing before 1629.** Chapter 1 opens in 1607 for the narrative, but boundary geometry only
-  exists from 1629. Pre-1629 is represented by settlement lights, never by filled territory.
+  exists from 1629. Pre-1629 is represented by settlement lights, never by filled territory. In the
+  bundled state-level record the floor is later still — **1783-09-03** — which is why Chapter 1 has
+  no bundle: see *Build status* above.
+- **Nothing moves after 1912.** No state was admitted between Arizona in February 1912 and Alaska in
+  January 1959, and the second of those is an inset. Chapters 6, 7 and 8 therefore draw a country
+  whose outline is fixed, and their content has to come from another layer. This is a fact about
+  American history rather than a shortcoming of the source.
 - **AHCB stops at 2000; the record does not.** Chapter 8 runs to the present, so its geometry from
   2000 on comes from **TIGER/Line** and its statistics from **NHGIS**. Those sources publish
   per-census snapshots rather than event-dated intervals, so Chapter 8 interpolates between fixed
@@ -299,7 +345,7 @@ Revised to be depth-first. This project's product is the way it looks — if the
 nothing else saves it. Ten breadth-first tasks would let all of them move while the one thing that
 matters stays unverified.
 
-### M0 — Vertical slice: prove the look
+### M0 — Vertical slice: prove the look — **done**
 
 One chapter, chosen for the most dramatic boundary change and the cleanest material: **Chapter 3,
 Division (1848–1865)**.
@@ -314,10 +360,14 @@ Division (1848–1865)**.
 *Success criterion:* a fifteen-second capture that makes someone ask how it was made. If it does not,
 iterate on the shader before writing another feature.
 
-### M1 — The spine
+### M1 — The spine — **in progress**
 
 All eight chapters. Chapter selector, per-chapter time scales, anchor layers, transitions, camera
 states. Audio stubbed.
+
+Seven of eight chapters are built and navigate; Chapter 1 is blocked on pre-1783 data rather than on
+code, and Chapters 6–8 are boundary-static by history, so the next thing that has to happen for them
+is not another chapter but the inset panels. See *Build status*.
 
 ### M2 — Anchors and annotation
 

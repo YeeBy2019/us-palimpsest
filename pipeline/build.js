@@ -37,6 +37,7 @@ import { CHAPTERS } from '../src/timeline/chapters.js';
 import { decodeArcs } from '../src/lib/topojson.js';
 import { eachArcIndex, pruneTopology } from './lib/topology.js';
 import { createProjection, fitSheet } from './lib/project.js';
+import { placeable } from './lib/placeable.js';
 import { simplifyArcs } from './lib/simplify.js';
 import { quantizeArcs } from './lib/quantize.js';
 
@@ -75,8 +76,16 @@ const QUANT_RESOLUTION = Number(process.env.SHEET_RESOLUTION ?? 2_000);
  */
 const TOLERANCE = Number(process.env.SHEET_TOLERANCE ?? 4e-4);
 
-/** Alaska and Hawaii are insets in their own projections; they are not part of the main field. */
-const INSET_IDS = /^(ak|hi)_/;
+/**
+ * Alaska and Hawaii are insets in their own projections; they are not part of
+ * the main field. The rule and the measurements behind it live in
+ * `lib/placeable.js`, because the failure mode there is silent and the module
+ * is worth a test of its own.
+ *
+ * Applying it in all three places — the fit, the prune and the annotation — is
+ * what the earlier version got wrong: it guarded only the fit, so from Chapter
+ * 4 onward every bundle carried a projected Alaska that was not on the sheet.
+ */
 
 /** Fields worth the bytes; the rest of AHCB's forty-column properties are dropped. */
 function slimProperties(properties) {
@@ -96,7 +105,7 @@ function slimProperties(properties) {
 function mainlandArcIndices(topology) {
   const indices = new Set();
   for (const geometry of topology.objects.states.geometries) {
-    if (INSET_IDS.test(geometry.properties.ID)) continue;
+    if (!placeable(geometry)) continue;
     eachArcIndex(geometry, (i) => indices.add(i < 0 ? ~i : i));
   }
   return indices;
@@ -144,6 +153,7 @@ async function main() {
       source,
       arcsAbsolute,
       (geometry) =>
+        placeable(geometry) &&
         geometry.properties.START_N <= chapter.endN && geometry.properties.END_N >= chapter.startN,
     );
 
@@ -168,6 +178,7 @@ async function main() {
     const changes = source.objects.states.geometries
       .filter(
         (g) =>
+          placeable(g) &&
           g.properties.START_N >= chapter.startN && g.properties.START_N <= chapter.endN,
       )
       .map((g) => ({

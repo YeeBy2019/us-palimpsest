@@ -64,6 +64,25 @@ export class ChapterState {
     /** Dot dispersal. 0 settled, 1 fully dispersed. */
     this.disperse = 0;
 
+    /**
+     * The *other* chapter in flight, or null when settled.
+     *
+     * A transition puts exactly two chapters on the sheet: the one being read
+     * and the one arriving. Without this the renderer has no way to tell those
+     * two apart from the five sitting loaded but idle behind them, and its only
+     * options are "draw one" or "draw all seven" — and drawing all seven is
+     * what it did. Seven coincident plates is not a heavier line, it is a
+     * different drawing: the 1803 Mississippi line reappears across the middle
+     * of the 1989 map, and the ink goes about twice as dark for the length of
+     * the dispersal.
+     *
+     * It is written in both directions on purpose. Before the swap the chapter
+     * being read is the outgoing one and the partner is the incoming one; after
+     * the swap they trade, because the identity of `chapter` moves at the same
+     * instant the date does.
+     */
+    this.partner = null;
+
     this.playing = false;
     /** Years per second while playing. Chapter length scales it downstream. */
     this.rate = 1;
@@ -95,8 +114,18 @@ export class ChapterState {
     return span > 0 ? clamp((this.date - this.chapter.start) / span, 0, 1) : 0;
   }
 
+  /**
+   * Is a chapter change in flight?
+   *
+   * The partner is part of the answer, not an afterthought. `blend` and
+   * `disperse` are written by GSAP, so between `goTo` returning and the first
+   * tick neither of them has moved off zero — for that one frame the state
+   * would claim to be settled while a transition was already running, and the
+   * renderer would hide the chapter that is on its way. Naming the partner is
+   * what happens at the start, so it is what "in flight" has to mean.
+   */
   get isTransitioning() {
-    return this.blend > 0 || this.disperse > 0;
+    return this.partner !== null || this.blend > 0 || this.disperse > 0;
   }
 
   /** Drop the cursor somewhere in the current chapter, with no animation. */
@@ -148,8 +177,10 @@ export class ChapterState {
     writeChapterSlot(chapter, 1);
     U.uAppearWindow.value = appearWindowFor(chapter);
 
+    const outgoing = this.chapter;
     const incoming = chapter;
     const arrivingAt = year ?? chapter.start;
+    this.partner = incoming;
 
     const timeline = gsap.timeline({
       onComplete: () => {
@@ -160,6 +191,7 @@ export class ChapterState {
         U.uChapter.value.set(1, 0, 0, 0);
         this.blend = 0;
         this.disperse = 0;
+        this.partner = null;
         U.uInk.value = 0;
         this.#timeline = null;
       },
@@ -172,6 +204,10 @@ export class ChapterState {
       .call(
         () => {
           this.chapter = incoming;
+          // The two swap roles at the instant the identity moves, so the
+          // outgoing plate stays on the sheet until the incoming one is
+          // underneath it.
+          this.partner = outgoing;
           this.date = arrivingAt;
           this.targetDate = arrivingAt;
           this.#aim = null;
@@ -207,6 +243,7 @@ export class ChapterState {
     }
     this.blend = 0;
     this.disperse = 0;
+    this.partner = null;
     U.uInk.value = 0;
   }
 
@@ -219,6 +256,7 @@ export class ChapterState {
     this.#aim = null;
     this.blend = 0;
     this.disperse = 0;
+    this.partner = null;
 
     writeChapterSlot(chapter, 0);
     writeChapterSlot(chapter, 1);

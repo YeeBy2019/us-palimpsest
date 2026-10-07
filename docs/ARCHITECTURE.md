@@ -78,6 +78,30 @@ Two rules this implies, both learned from the reference:
   shows up as one object rendering with another object's shader, and it is very hard to read back
   from the symptom.
 
+### Exactly two chapters are on the sheet at a time
+
+Every loaded chapter holds its own layer — a land fill, an outline and its share of the anchor slots
+— and all of them sit in the scene from boot. So somebody has to decide, every frame, which of them
+is drawn, and the answer is: the one being read, plus the one arriving if a transition is in flight.
+
+`ChapterState.partner` is what makes that expressible. It names the *other* chapter in flight, and it
+moves with the identity: before the swap the state's `chapter` is the outgoing one and the partner is
+the incoming one; at the swap they trade, because `chapter` moves at the same instant the date does.
+This is also why `isTransitioning` has to consult it. `blend` and `disperse` are written by GSAP, so
+between `goTo` returning and the first tick both are still zero — for that one frame the state would
+call itself settled while a transition was already running.
+
+The renderer's rule used to read `settled ? active : true`. Written at two chapters, that says the
+same thing as `active || arriving`, because the two sets are identical. At seven it does not: every
+loaded chapter is drawn at once, so the 1803 Mississippi line returns across the middle of the 1989
+map and the ink goes about twice as dark for the length of the dispersal. Measured over a
+Chapter 2 → Chapter 8 transition, the peak frame of the dispersal dropped from 9.5% to 4.5% ink once
+the rule was narrowed — and the settled frames were unchanged, which is the point: a steady state
+should never have been at stake.
+
+The general form of the mistake is worth keeping: *"all of them" is only ever correct while the set
+is small enough to be the same as "the two that matter."*
+
 ## Where the interface lives
 
 Everything except the world is DOM.
@@ -221,7 +245,16 @@ src/
     ui.css            the chrome's own paper
   lib/
     math.js
+    dates.js          ISO <-> AHCB's YYYYMMDD <-> fractional years
+    topojson.js       arc decoding, shared by the pipeline and the runtime
 pipeline/             AHCB shapefile -> per-chapter TopoJSON bundles
+  build.js            the whole run: decode, prune, project, simplify, quantise
+  lib/
+    project.js        the Albers projection and the sheet fit
+    topology.js       prune and remap, without rebuilding shared arcs
+    simplify.js       Douglas-Peucker that keeps arc endpoints
+    quantize.js       the final TopoJSON transform
+    placeable.js      which geometries the sheet can actually hold
 public/               shipped as it is
   favicon.ico         the mark, re-encoded for the tab bar
   assets/             fonts and textures
@@ -376,6 +409,32 @@ Two consequences worth stating:
 The District of Columbia, 68 square miles, is a marker and a label at state-level simplification — no
 geometry to derive and none to simplify.
 
+### A projection that cannot place something does not necessarily fail
+
+The panels do not exist yet, so today the atlas has exactly one sheet and it is fitted to the lower
+forty-eight. Alaska and Hawaii are therefore not merely elsewhere — they are unrepresentable, and
+they have to be excluded rather than merely not looked at. `pipeline/lib/placeable.js` holds that
+rule; it is a module rather than a constant because the failure is silent and deserves its own test.
+
+Silent is the operative word. `geoAlbers()` is a function of longitude and latitude with no notion of
+the frame it draws into, so it returns finite, plausible coordinates for Nome and Honolulu and
+reports no error at all. Measured against Chapter 7's bundle before the rule was applied to the
+prune: Alaska normalised to sheet x[-0.575, 0.060] y[0.773, 1.251] and Hawaii to x[-0.805, -0.738],
+on a sheet 1.000 wide and 0.776 high. Hawaii was entirely off the paper; Alaska left a sliver across
+the top-left corner. The cost was the larger problem: 6,671 points per version, roughly 44% of those
+chapters' payload and half their triangulation, spent on geometry that was not on the drawing.
+
+The rule has to be applied in three places, and applying it in one was the original mistake:
+
+| Where | Why |
+| ----- | --- |
+| The sheet fit | Otherwise the panels stretch the sea the mainland is measured against. |
+| The prune | Otherwise the geometry enters the bundle and is drawn. |
+| The annotation | Otherwise the chapter notes describe boundary changes the drawing cannot show. |
+
+It lifts when the composite projector and the panel layout land. Deleting it early produces no error
+— only a smudge on the paper and a bundle twice too large.
+
 ## The anchor window
 
 An anchor is a boundary state retained past the chapter that owns it, drawn as desaturated ink in the
@@ -427,6 +486,15 @@ Settled on 2026-10-07:
   stylesheet imported from a module cannot start downloading until that module and everything
   behind it has run, and the chrome spends that time on screen in the browser's default styling.
 - **The insets unfold when the date reaches them.** The sheet is not pre-sized to hold three panels.
+- **Only the two chapters in flight are drawn.** See *Exactly two chapters are on the sheet at a
+  time* above. The earlier rule showed every loaded layer during a transition, which is the same
+  thing at two chapters and six extra plates of ink at seven.
+- **Inset geometry is excluded from bundles until the panels exist**, in the fit, the prune and the
+  annotation. `geoAlbers` places Alaska and Hawaii without complaining, so the exclusion has to be
+  explicit; it was ~44% of Chapters 4–8's payload.
+- **Chapter 1 has no bundle, and that is a data decision rather than a schedule one.** The
+  state-level record begins on 1783-09-03, which is the day the chapter closes, so a bundle cut to it
+  is 176 years of blank paper. Colonial boundaries exist in AHCB from 1629 at county level only.
   It grows at 1867 and again at 1898, and the camera reframes with it. The alternative — reserving
   the space from the first frame — would have shown an empty panel for a hundred and sixty years and
   wasted a third of the sheet doing it.
