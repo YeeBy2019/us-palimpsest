@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>us-palimpsest — an American history map you can walk into</title>
+    <meta
+      name="description"
+      content="An interactive atlas of American history: engraved by hand, dissolved in dots, time as the first citizen."
+    />
+    <!-- The stylesheet is imported from `src/main.js` rather than linked here,
+         so that Vite bundles it as part of the module graph. -->
+  </head>
+  <body>
+    <!-- The world. Everything else on this page is DOM: the loader, the cards,
+         the chrome. Only the sheet is WebGL, which keeps text crisp at any
+         resolution and keeps the interface cheap to change. -->
+    <div id="stage">
+      <canvas id="scene"></canvas>
+    </div>
+
+    <div class="chrome">
+      <header class="masthead">
+        <h1>us&#8209;palimpsest</h1>
+        <p class="tagline">
+          An American history map you can walk into. Engraved by hand, dissolved in dots,
+          time as the first citizen.
+        </p>
+      </header>
+
+      <nav class="chapters" id="chapters" aria-label="Chapters"></nav>
+
+      <footer class="dock">
+        <div class="dock__date">
+          <output class="dock__stamp" id="stamp" for="scrub">—</output>
+          <input
+            class="dock__scrub"
+            id="scrub"
+            type="range"
+            min="0"
+            max="1000"
+            value="0"
+            step="1"
+            aria-label="Date within this chapter"
+          />
+        </div>
+
+        <div class="dock__controls">
+          <button class="dock__button" id="play" type="button" aria-pressed="false">Play</button>
+          <button class="dock__button" id="rewind" type="button">Restart</button>
+          <p class="dock__material" id="material"></p>
+        </div>
+      </footer>
+    </div>
+
+    <!-- The chapter card: the only thing that ever covers the sheet, and it is
+         made of the same paper. -->
+    <div class="card" id="card" aria-hidden="true">
+      <div class="card__inner">
+        <p class="card__index" id="card-index"></p>
+        <h2 class="card__name" id="card-name"></h2>
+        <p class="card__material" id="card-material"></p>
+      </div>
+    </div>
+
+    <div class="loader" id="loader">
+      <svg class="loader__mark" viewBox="0 0 120 120" aria-hidden="true">
+        <!-- An engraved line drawing itself, the way the boundaries will. -->
+        <path
+          id="loader-path"
+          d="M60 12 C 86 12, 106 32, 106 58 C 106 84, 86 108, 60 108 C 34 108, 14 84, 14 58 C 14 32, 34 12, 60 12 Z M60 30 C 78 30, 88 42, 88 58 C 88 74, 78 86, 60 86 C 42 86, 32 74, 32 58 C 32 42, 42 30, 60 30 Z"
+          fill="none"
+        />
+      </svg>
+      <p class="loader__text" id="loader-text">Grinding the ink</p>
+    </div>
+
+    <noscript>
+      <p class="fatal">
+        This atlas is drawn in WebGL. It needs JavaScript, and a browser with a GPU.
+      </p>
+    </noscript>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

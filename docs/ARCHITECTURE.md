@@ -22,7 +22,7 @@ No code is copied from it. What we take is structure.
 | **No framework, no engine** — plain ES modules on three.js | The look is the product. A framework's abstractions sit between us and the shader. The reference carries ~10.5k lines on one dependency; we have no reason to spend that budget on scaffolding. |
 | **One set of uniforms drives every material** | A chapter change must reach the whole frame in one frame. If each material holds its own state, a sequence transition arrives in pieces and the illusion dies. |
 | **Chapters are a weight vector, not a switch** | The reference's season is a `vec4` of weights easing toward a one-hot target; its weather is a set of target values. This is exactly our chapter model, and it gives cross-chapter blending for free. |
-| **Patch built-in materials instead of writing custom ones** | `onBeforeCompile` injects the shared world into `MeshStandardMaterial`. We keep three.js lighting, shadows and tonemapping, and only add paper, ink and hatching. |
+| **Patch built-in materials instead of writing custom ones** | `onBeforeCompile` injects the shared world into three.js's own materials, keeping their pipeline and their uniform plumbing, and we add paper, ink and hatching. The *sheet* is then left unlit on purpose — see the decision log. |
 | **The interface is DOM and CSS, never WebGL** | The reference's loader, chapter cards, page-turn, dock and about sheet are HTML, CSS and inline SVG. Only the world is WebGL. Text stays crisp, the DOM stays accessible, and UI iteration costs seconds. |
 | **A render-scale governor instead of dropped frames** | Quality degrades, frames do not. Measured over a 1.5 s window, not per frame. |
 | **Quick tier draws the first frame; detail streams behind it** | Directly serves the M0 success criterion — something on screen, and looking right, fast. |
@@ -353,11 +353,13 @@ geometry to derive and none to simplify.
 
 ## The anchor window
 
-An anchor is a boundary state retained past the chapter that owns it, drawn as desaturated hatch in
-the chapter's own material. Its life:
+An anchor is a boundary state retained past the chapter that owns it, drawn as desaturated ink in the
+chapter's own material — the same buffer as the live boundaries, at reduced weight and a third of the
+opacity. It is line work, not a fill: a translucent polygon on an engraved plate reads as a
+registration error. Its life:
 
 - The chapter that owns it draws it at full strength.
-- The **two chapters** after that draw it at decreasing hatch density.
+- The **two chapters** after that draw it with a lighter hand, at decreasing opacity.
 - From the third chapter on it is paper texture only: no geometry, no fill-rate cost.
 
 Two things follow, and an earlier draft of the README stated them as separate rules when they are
@@ -399,9 +401,39 @@ Settled on 2026-10-07:
   **TIGER/Line**, statistics and cross-checks from **NHGIS**. The licence difference decides it. See
   *Beyond 2000* above.
 
-Nothing on the pre-M0 decision list is outstanding. What remains is implementation-shaped rather than
-directional: the sheet's aspect ratio and the exact camera reframe at an inset (M0), and the quality
-tiers with their persistence (M5).
+Settled while building M0 (2026-10-07):
+
+- **The sheet is unlit. No lights in the scene at all.** Everything on it — grain, vignette, hatching,
+  the torn edge — is drawn rather than illuminated, and a `MeshStandardMaterial` under an ambient
+  light divides its albedo by pi on the way out. The first working build came out as grey card for
+  exactly that reason: the chapter palettes were right and the lighting model was throwing a third of
+  them away. The land, the paper and the lines are all `MeshBasicMaterial` now, so a chapter's colour
+  is the colour it was written as. M4's scene dives are where a light will have something to fall on.
+- **Line weights are authored in CSS pixels, not sheet units.** A chapter's ink is 1.1 to 2.2 of them,
+  which is the only unit in which "a hairline" survives a change of monitor. `uWorldPerPixel` is the
+  exchange rate, and it deliberately excludes the governor's render scale: the line keeps its size on
+  screen as resolution drops, and only its sampling coarsens.
+- **Hatching is measured in pixels too, and this one was a real bug.** The hatch's line width and
+  antialiasing used to be fractions of the hatch period, which at eleven lines across a thousand-pixel
+  map is a thirty-pixel band with a twenty-pixel soft edge — so the hatching rendered as a broad
+  diagonal gradient and the land came out blotchy. Anything drawn as a line needs to know how big a
+  pixel is. `hatchScale` is therefore in lines across the sheet, in the 60–400 range where hatching is
+  legible on a screen rather than the hundreds-per-inch of a paper plate.
+- **The appear window belongs to the chapter, not to history.** A chapter's geometry is cut to the
+  chapter, so the earliest boundary version in every bundle starts on the chapter's opening date; a
+  fade applied to that meant every chapter opened on blank paper for a year. Each vertex now also
+  carries `aFrom`, and only a boundary that *begins* inside the chapter fades in. `aTerminal` is the
+  same idea at the other end.
+- **The date in a deep link is written to the day.** It used to be written to the month and read to
+  the day, so the atlas handed out links it could not read back and a reload moved the date — for the
+  1861 anchor, from the secession line to ten days before it. The reader still accepts a month or a
+  bare year, because that is what a person types when passing a link on.
+
+M0 is built end to end for **Chapter 2 Expansion (1783–1848)** and **Chapter 3 Division (1848–1865)** —
+the vertical slice's success criterion is a fifteen-second capture of Chapter 3. Nothing on the
+pre-M0 decision list is outstanding. What remains is implementation-shaped: the remaining six
+chapters' bundles, the sheet growing for the Alaska and Hawaii insets, and the quality tiers with
+their persistence (M5).
 
 ## Attribution
 

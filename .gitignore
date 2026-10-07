@@ -60,6 +60,9 @@ tmp/
 # ---------- Data files (large, opt in when needed) ----------
 # Raw geographic data and models downloaded locally; not distributed with the repo.
 data/raw/
+# Generated chapter bundles. `npm run data:build` regenerates them; committing
+# them would put derived geometry in the history where it cannot be diffed.
+data/chapters/
 assets/models/
 *.shp
 *.dbf

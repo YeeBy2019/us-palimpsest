@@ -1,0 +1,26 @@
+{
+  "name": "us-palimpsest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An interactive 3D atlas of American history. Engraved by hand, dissolved in dots, time as the first citizen.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "data:build": "node pipeline/build.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "gsap": "^3.15.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "d3-geo": "^3.1.1",
+    "topojson-client": "^3.1.0",
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
+  }
+}
