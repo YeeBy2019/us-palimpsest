@@ -220,7 +220,7 @@ src/
   audio/        分章环境音
   ui/           加载器、章节卡、选择器、控件坞、深链接
 pipeline/       AHCB shapefile → 分章 TopoJSON 的构建脚本
-public/assets/  直接分发的字体与贴图
+public/          图标集;直接分发的字体与贴图
 data/           生成的各章数据包（不提交）
 ```
 

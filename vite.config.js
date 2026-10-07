@@ -9,8 +9,9 @@ const root = fileURLToPath(new URL('.', import.meta.url));
 /**
  * The generated chapter bundles live in `data/`, not in `public/`.
  *
- * They are build output rather than source, and `public/` is reserved for fonts
- * and textures that ship as they are. In development this needs nothing: Vite
+ * They are build output rather than source, and `public/` is reserved for
+ * assets that ship exactly as they are — fonts, textures, the favicon. In
+ * development this needs nothing: Vite
  * serves the project root, so `/data/chapters/…` resolves. A production build
  * only knows about `public/` and the module graph, so the bundles have to be
  * copied in — which is all this plugin does.

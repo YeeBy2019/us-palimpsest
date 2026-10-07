@@ -8,6 +8,15 @@
       name="description"
       content="An interactive atlas of American history: engraved by hand, dissolved in dots, time as the first citizen."
     />
+    <!-- The atlas's own mark: the lower forty-eight, cut from the same paper the
+         plate is printed on. A real multi-size ICO rather than a renamed PNG, so
+         the tab bar can take the size it wants. -->
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <!-- Same drawing as a plain PNG, for engines that would rather not reason
+         about an ICO container. -->
+    <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32" />
+    <!-- iOS flattens transparency to black, so this one carries its own plate. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- The stylesheet is imported from `src/main.js` rather than linked here,
          so that Vite bundles it as part of the module graph. -->
   </head>

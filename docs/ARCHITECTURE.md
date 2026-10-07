@@ -199,7 +199,9 @@ src/
   lib/
     math.js
 pipeline/             AHCB shapefile -> per-chapter TopoJSON bundles
-public/assets/        fonts and textures that ship as-is
+public/               shipped as it is
+  favicon.ico         the mark, re-encoded for the tab bar
+  assets/             fonts and textures
 data/                 generated chapter bundles (not committed)
 ```
 
@@ -393,6 +395,11 @@ Settled on 2026-10-07:
   easing; M4's authored scene dives are the reason that was reversed.
 - **Albers Equal-Area Conic (EPSG:5070), with Alaska and Hawaii as insets.** See *Projection* above.
   The contiguous states are the main field; the District is a marker, not geometry.
+- **The favicon is a real multi-size ICO, re-encoded from the supplied artwork.** The supplied file
+  declared 256×256 in its directory entry while carrying a 1797×1800 PNG, and weighed 2.2 MB — not
+  something a tab bar should fetch. It is now 16/32/48 in a container whose entries match their
+  payload, with the artwork cropped to its own bounding box and padded back to square; the source
+  left 43% of its height empty, which would have put the map in a third of a 16 px tab.
 - **The insets unfold when the date reaches them.** The sheet is not pre-sized to hold three panels.
   It grows at 1867 and again at 1898, and the camera reframes with it. The alternative — reserving
   the space from the first frame — would have shown an empty panel for a hundred and sixty years and

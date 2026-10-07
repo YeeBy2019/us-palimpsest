@@ -365,7 +365,7 @@ src/
   audio/          per-chapter ambience
   ui/             loader, chapter cards, selector, dock, deep links
 pipeline/         AHCB shapefile -> per-chapter TopoJSON bundles
-public/assets/    fonts and textures that ship as-is
+public/           the favicon set; fonts and textures — shipped as they are
 data/             generated chapter bundles (not committed)
 ```
 
