@@ -49,10 +49,11 @@
  *   They are not empty — each draws the full forty-eight-state plate plus the
  *   two inset panels, and the all-`aFrom`-zero path is a genuinely different
  *   code path from the one the first four chapters exercise. Their content is
- *   not boundaries, though. It is cities and events. And the panels do not
- *   rescue them: each panel is static from the day it appears inside Chapter 4,
- *   because AHCB records every version of Alaska's outline as the same shape
- *   under a new name. See `pipeline/lib/regions.js` and the README.
+ *   not boundaries, though. It is the story layer — authored beats, one chapter
+ *   of which is written. And the panels do not rescue them: each panel is static
+ *   from the day it appears inside Chapter 4, because AHCB records every version
+ *   of Alaska's outline as the same shape under a new name. See
+ *   `timeline/narration.js` and the README.
  * - `audio` strings are authored and unread; sound is M3.
  *
  * ## The material numbers
@@ -326,7 +327,12 @@ export const CHAPTERS = [
     // there is no earlier line to leave as sediment — a pinned anchor here
     // would draw the live map's own outline a second time, a fraction of a
     // pixel off itself, which reads as a printing fault rather than as memory.
-    // Whatever carries this chapter will be events, not territory.
+    //
+    // What carries this chapter is the story layer: nine authored beats in
+    // `narration.js`, from Pearl Harbor to the surrender. It is the first
+    // chapter written that way, and the clearest evidence that the layer is
+    // needed rather than decorative — there is no boundary content to fall back
+    // on at all.
     built: true,
   }),
   chapter({

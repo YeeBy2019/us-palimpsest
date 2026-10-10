@@ -15,6 +15,7 @@ import { U } from './core/shared.js';
 import { ChapterState } from './env/chapter.js';
 import { buildDots } from './fx/dots.js';
 import { BUILT_CHAPTERS } from './timeline/chapters.js';
+import { HOLD_SECONDS, beatsFor, holdsFor, paceFor } from './timeline/narration.js';
 import { Interface, parseDeepLink } from './ui/ui.js';
 import { createAnchorMaterial, visibleAnchors } from './world/anchors.js';
 import { buildBoundaries } from './world/boundaries.js';
@@ -98,8 +99,23 @@ async function boot() {
 
   // ---- state -------------------------------------------------------------
 
+  // How a written chapter plays is the one thing the story layer asks of the
+  // state machine, and it is set here rather than inside `ChapterState` so that
+  // the state machine stays innocent of content: it is told a pace, a list of
+  // dates, and how long to stand at them, and it never learns what is at any of
+  // those dates. Set on both paths — the opening chapter and every arrival —
+  // because timing that is only right at boot is timing that is wrong the first
+  // time anyone navigates.
+  function applyStoryTiming(chapter) {
+    const beats = beatsFor(chapter);
+    state.pace = paceFor(beats);
+    state.holds = holdsFor(beats);
+    state.holdSeconds = HOLD_SECONDS;
+  }
+
   const state = new ChapterState(opening);
   if (link.year !== null) state.snap(opening, link.year);
+  applyStoryTiming(opening);
 
   ui.state = state;
   ui.mount();
@@ -127,6 +143,7 @@ async function boot() {
   state.onChange((chapter) => {
     const layer = layers.get(chapter.id);
     if (layer) layer.group.visible = true;
+    applyStoryTiming(chapter);
   });
 
   // ---- warm the shaders, then draw ---------------------------------------

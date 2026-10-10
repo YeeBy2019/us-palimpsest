@@ -86,6 +86,41 @@ export class ChapterState {
     this.playing = false;
     /** Years per second while playing. Chapter length scales it downstream. */
     this.rate = 1;
+    /**
+     * Fraction of the chapter's own span the cursor covers per second while
+     * playing, before `rate`.
+     *
+     * This is M0's value, and it is the state machine's *default* rather than
+     * the atlas's setting: the story layer overrides it, because a chapter with
+     * written beats has to hold each one long enough to read, and nine cards at
+     * M0's rate would be eighteen seconds of screen time. `main.js` is what
+     * does the overriding, which is why this module still knows nothing about
+     * content. `narration.test.js` pins the two defaults equal so the number
+     * cannot drift apart into two.
+     */
+    this.pace = 0.055;
+
+    /**
+     * Dates the cursor stops at while playing, ascending, in fractional years.
+     *
+     * A *hold* is a playback concept, not a historical one — the same shape as a
+     * keyframe — which is why this module can own the mechanism while knowing
+     * nothing about what is at a hold. `main.js` fills it from the story layer's
+     * beats.
+     */
+    this.holds = [];
+    /** How long to stand at each hold, in seconds. */
+    this.holdSeconds = 0;
+    /** Seconds still to stand at the current hold; 0 while travelling. */
+    this.dwell = 0;
+    /**
+     * The hold last stood on, so arriving at it again does not re-trigger.
+     *
+     * Without this the cursor would stand on the first hold forever: the
+     * chapter's opening beat is dated the day the chapter opens, so on the very
+     * first tick `from` and `hold` are the same number.
+     */
+    this.heldAt = null;
 
     this.#aim = null;
     this.#timeline = null;
@@ -131,6 +166,9 @@ export class ChapterState {
   /** Drop the cursor somewhere in the current chapter, with no animation. */
   snapDate(year) {
     this.#aim = null;
+    // A viewer who takes hold of the timeline has taken it off the story, so a
+    // hold in progress is abandoned rather than resumed wherever they let go.
+    this.dwell = 0;
     this.date = clamp(year, this.chapter.start, this.chapter.end);
     this.targetDate = this.date;
     U.uDate.value = this.date;
@@ -145,6 +183,9 @@ export class ChapterState {
    */
   aimDate(year) {
     this.targetDate = clamp(year, this.chapter.start, this.chapter.end);
+    // See `snapDate`: a scrub cancels a hold rather than leaving the cursor to
+    // resume standing still at a date the viewer has just moved away from.
+    this.dwell = 0;
     if (!this.#aim) {
       // `this.date` is the single source of truth; `update()` writes it into the
       // uniform every frame, so the tween only has to move the number.
@@ -211,6 +252,11 @@ export class ChapterState {
           this.date = arrivingAt;
           this.targetDate = arrivingAt;
           this.#aim = null;
+          // The arriving chapter's beats have not been stood on. Cleared here,
+          // under cover of the dispersal, for the same reason the date is: it is
+          // the one moment in the atlas when nobody can see the state change.
+          this.dwell = 0;
+          this.heldAt = null;
           U.uDate.value = arrivingAt;
           this.#announce();
         },
@@ -245,6 +291,8 @@ export class ChapterState {
     this.disperse = 0;
     this.partner = null;
     U.uInk.value = 0;
+    this.dwell = 0;
+    this.heldAt = null;
   }
 
   /** Settle immediately on a chapter, skipping the dispersal entirely. */
@@ -257,6 +305,10 @@ export class ChapterState {
     this.blend = 0;
     this.disperse = 0;
     this.partner = null;
+    // A new chapter starts its own story from the beginning: no hold carried
+    // over from the last one, and none of its beats already spent.
+    this.dwell = 0;
+    this.heldAt = null;
 
     writeChapterSlot(chapter, 0);
     writeChapterSlot(chapter, 1);
@@ -276,15 +328,49 @@ export class ChapterState {
    */
   update(dt, time) {
     if (this.playing && !this.isTransitioning) {
-      const span = this.chapter.end - this.chapter.start;
-      // A chapter takes roughly the same time to read whatever it spans, so the
-      // rate is expressed as fractions of a chapter per second rather than years
-      // per second. A four-year chapter and a hundred-and-sixty-year one then
-      // play at the same felt speed.
-      const step = span * 0.055 * this.rate * dt;
-      this.date = clamp(this.date + step, this.chapter.start, this.chapter.end);
-      this.targetDate = this.date;
-      if (this.date >= this.chapter.end) this.playing = false;
+      // A frame that finishes a hold is not a frame thrown away: whatever is
+      // left of it goes into travelling. Decrementing the dwell and travelling
+      // in separate frames would stand the cursor still for one frame longer
+      // than the hold says, on every beat, and the error would grow with the
+      // frame rate rather than with anything anyone chose.
+      let remaining = dt;
+
+      if (this.dwell > 0) {
+        // Standing on a beat. The date is already the hold's, so what moves is
+        // the clock and not the cursor — which is the whole of the difference
+        // between playing a chapter and scrubbing one.
+        const spent = Math.min(this.dwell, remaining);
+        this.dwell -= spent;
+        remaining -= spent;
+      }
+
+      if (remaining > 0) {
+        const span = this.chapter.end - this.chapter.start;
+        // A chapter takes roughly the same time to walk whatever it spans, so
+        // the pace is a fraction of the chapter per second rather than years per
+        // second: a four-year chapter and a hundred-and-sixty-year one then play
+        // at the same felt speed.
+        const step = span * this.pace * this.rate * remaining;
+        const target = this.date + step;
+        const hold = this.#nextHold(this.date, target);
+
+        if (hold !== null) {
+          // Land exactly on the date rather than near it. A beat is a day, and a
+          // card that appears a week early is a card about the wrong thing —
+          // the same argument as the deep link having to round-trip to the day.
+          this.date = hold;
+          this.heldAt = hold;
+          this.dwell = this.holdSeconds;
+        } else {
+          this.date = clamp(target, this.chapter.start, this.chapter.end);
+        }
+        this.targetDate = this.date;
+      }
+
+      // The chapter is over when the date is at its end and nothing is holding
+      // it there. A chapter whose last beat is dated the day it closes gets its
+      // hold and then stops, which is why the dwell is part of this condition.
+      if (this.dwell === 0 && this.date >= this.chapter.end) this.playing = false;
     }
 
     // One write per frame, from one place. Everything above computes numbers;
@@ -293,5 +379,29 @@ export class ChapterState {
     U.uInk.value = this.disperse;
     U.uDate.value = this.date;
     U.uChapter.value.set(1 - this.blend, this.blend, 0, 0);
+  }
+
+  /**
+   * The first hold at or after `from` and no further than `to`, or null.
+   *
+   * Both bounds are load-bearing and each is here for a case that occurred:
+   *
+   * - **Inclusive of `from`.** Chapter 6's first beat is dated the day the
+   *   chapter opens, so on the first tick `from` and the hold are the same
+   *   number. A strict comparison would make the atlas skip the first beat of
+   *   every chapter that opens on its own subject.
+   * - **Exclusive of `heldAt`.** Otherwise the cursor arrives at a hold, stands
+   *   there for the hold, and then finds it again — forever.
+   *
+   * A linear scan, because a chapter has nine beats and the list is sorted.
+   */
+  #nextHold(from, to) {
+    for (const hold of this.holds) {
+      if (hold < from) continue;
+      if (hold === this.heldAt) continue;
+      if (hold > to) return null;
+      return hold;
+    }
+    return null;
   }
 }

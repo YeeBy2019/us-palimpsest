@@ -168,6 +168,7 @@ body {
 }
 
 .dock__date {
+  position: relative;
   flex: 1 1 auto;
   min-width: 0;
 }
@@ -216,6 +217,41 @@ body {
   background: var(--ink);
 }
 
+/* Story beats, ticked over the scrub's own track.
+
+   Overlaid rather than laid out, because it has to sit on the track and not
+   beside it. `bottom: 0` and the scrub's own 22px height line the two boxes up
+   exactly — the scrub is the last element in flow inside `.dock__date`, so its
+   top and bottom edges are this box's. A tick is 4px tall centred on the 1px
+   track, which is 11px up from the bottom: 9px plus half of four.
+
+   The beats are drawn at all times, not only while a chapter is playing,
+   because they are the shape of the chapter's content — a reader should be able
+   to see that Chapter 6 has nine moments in it before deciding to press Play. */
+.dock__beats {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22px;
+  pointer-events: none;
+}
+
+.dock__beat {
+  position: absolute;
+  bottom: 9px;
+  width: 1px;
+  height: 4px;
+  background: var(--ink-faint);
+  transition: background 200ms ease, height 200ms ease, bottom 200ms ease;
+}
+
+.dock__beat[data-current='true'] {
+  bottom: 7px;
+  height: 8px;
+  background: var(--ink);
+}
+
 .dock__controls {
   display: flex;
   align-items: center;
@@ -253,6 +289,96 @@ body {
   font-style: italic;
   color: var(--ink-faint);
   text-align: right;
+}
+
+/* ---------------- the story panel ----------------
+
+   A margin note, not a floating card. It sits in the right margin at mid
+   height, hanging off a hairline rule, with no fill and no shadow — which is
+   what a note written on a plate looks like, and what keeps the sheet legible
+   underneath it. A translucent panel over an engraved map reads as a window;
+   a rule and some text reads as someone having written on the map, which is
+   the same argument as the palimpsest rule. */
+
+.story {
+  /* Required, and not for layout reasons. `@layer boot` in `index.html` sets
+     `display: none` on this element so it cannot appear before the stylesheet
+     lands — and a layered declaration beats the user agent's own `[hidden]`
+     rule, so without an unlayered `display` here nothing could ever show it.
+     That is exactly the trap: every other element in that list (`.chrome`,
+     `.card`, `.loader`, `.fatal`) declares its display in this file, so the
+     pattern is invisible until a new element joins the list and silently never
+     renders. It cost one debugging session; it is written down so it costs no
+     second one. */
+  display: block;
+  position: fixed;
+  top: 50%;
+  right: clamp(14px, 2.4vw, 34px);
+  width: min(30ch, 34vw);
+  padding-left: 14px;
+  border-left: 1px solid var(--rule);
+  transform: translateY(-50%);
+  /* Above `.chrome`'s own background — same stacking level, later in the
+     document — so the fibre does not multiply the note's ink the way it does
+     the sheet's. Text is the one thing here that has to stay crisp. */
+  z-index: 2;
+  pointer-events: none;
+}
+
+.story[hidden] {
+  display: none;
+}
+
+/* Restarted by removing and re-adding the class, which is the only reliable way
+   to replay a CSS animation — the same trick the chapter card uses. */
+.story.is-in {
+  animation: story-in 560ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes story-in {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-50% + 12px));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%);
+  }
+}
+
+.story__meta {
+  margin: 0 0 7px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.story__title {
+  margin: 0 0 9px;
+  font-size: clamp(15px, 1.6vw, 19px);
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.story__body {
+  margin: 0;
+  font-size: clamp(12px, 1.15vw, 14px);
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+/* The same beat again in Chinese, marked as a second reading rather than a
+   subtitle: the rule says "this is the sentence you already read, said in the
+   other language", and neither version is the translation of the other. */
+.story__body--zh {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--rule);
+  font-size: clamp(13px, 1.2vw, 15px);
+  line-height: 1.7;
+  color: var(--ink-faint);
 }
 
 /* ---------------- chapter card ---------------- */
@@ -395,6 +521,14 @@ body {
   .card[aria-hidden='false'] {
     animation-duration: 0.6s;
   }
+
+  .story.is-in {
+    animation: none;
+  }
+
+  .dock__beat {
+    transition: none;
+  }
 }
 
 @media (max-width: 720px) {
@@ -405,5 +539,11 @@ body {
 
   .chapters {
     max-width: 16ch;
+  }
+
+  /* Narrower, so a note in the margin does not become a note over the map. */
+  .story {
+    width: min(26ch, 46vw);
+    padding-left: 10px;
   }
 }

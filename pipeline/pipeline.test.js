@@ -18,6 +18,7 @@ import { describe, expect, it } from 'vitest';
 import { geoMercator } from 'd3-geo';
 
 import { CHAPTERS, isoToN, isoToYear } from '../src/timeline/chapters.js';
+import { BEATS } from '../src/timeline/narration.js';
 import { decodeArcs, eachArcIndex, polygonRings, ringArea } from '../src/lib/topojson.js';
 import { PANEL_RECTS, createProjectors, fitPanel, fitSheet } from './lib/project.js';
 import { MAINLAND, PANEL_REGIONS, regionOf } from './lib/regions.js';
@@ -534,6 +535,90 @@ describe('the panel layout against the real record', () => {
       }
       expect(offenders, `${region} panel runs into ${offenders.join(', ')}`).toEqual([]);
     }
+  });
+});
+
+describe('the story places against the real map', () => {
+  /**
+   * **This is a pin, not a guard.** It asserts a measured fact about content —
+   * which of the story's places the drawing actually contains — and it guards
+   * no function. Its value is the failure it produces when someone adds a beat:
+   * a beat whose place is off the plate is not an error, but it is a decision,
+   * and the camera work in M4 will have to treat those places differently. This
+   * makes that decision visible at the moment it is made instead of when the
+   * camera is written.
+   */
+  const source = hasRecord ? JSON.parse(readFileSync(SOURCE, 'utf8')) : null;
+
+  it.skipIf(!hasRecord)('has a place on the drawing for four of these beats and none for five', () => {
+    const arcs = decodeArcs(source);
+    const projectors = createProjectors();
+
+    const pointsIn = (region) => {
+      const points = [];
+      for (const geometry of source.objects.states.geometries) {
+        if (regionOf(geometry.properties.ID) !== region) continue;
+        eachArcIndex(geometry, (i) => {
+          for (const point of arcs[i < 0 ? ~i : i]) {
+            const projected = projectors[region](point);
+            if (projected) points.push(projected);
+          }
+        });
+      }
+      return points;
+    };
+
+    const { normalize: toSheet, sheet } = fitSheet(pointsIn(MAINLAND));
+    const panelFits = {};
+    for (const region of PANEL_REGIONS) {
+      panelFits[region] = fitPanel(pointsIn(region), PANEL_RECTS[region]);
+    }
+
+    const onSheet = ([x, y]) => x >= 0 && x <= sheet.width && y >= 0 && y <= sheet.height;
+    const inRect = ([x, y], [x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1;
+
+    const where = {};
+    for (const [chapterId, beats] of Object.entries(BEATS)) {
+      for (const beat of beats) {
+        const { lon, lat } = beat.place;
+        const found = [];
+        const metres = projectors.mainland([lon, lat]);
+        // `not null` is not the question. The lower-48 projector returns finite,
+        // plausible coordinates for Tokyo — that is the hazard `regions.js`
+        // exists for — so the question is whether the result lands on the sheet.
+        if (metres && onSheet(toSheet(metres))) found.push('sheet');
+        for (const region of PANEL_REGIONS) {
+          const projected = projectors[region]([lon, lat]);
+          if (projected && inRect(panelFits[region].normalize(projected), PANEL_RECTS[region])) {
+            found.push(region);
+          }
+        }
+        where[`${chapterId}/${beat.id}`] = found.join('+') || null;
+      }
+    }
+
+    // Off the plate entirely. Midway and Iwo Jima are in the Pacific beyond the
+    // sheet's west edge at its scale, Normandy past the east edge, and Japan
+    // further past it again.
+    expect(
+      Object.entries(where)
+        .filter(([, place]) => place === null)
+        .map(([id]) => id),
+    ).toEqual([
+      'wwii/midway',
+      'wwii/d-day',
+      'wwii/iwo-jima',
+      'wwii/hiroshima',
+      'wwii/vj-day',
+    ]);
+
+    // Pearl Harbor is the interesting one: it is not on the sheet and it is on
+    // the drawing, because the Hawaii panel is where it belongs. A beat can be
+    // placed by an inset without the inset knowing anything about beats.
+    expect(where['wwii/pearl-harbor']).toBe('hawaii');
+    expect(where['wwii/trinity']).toBe('sheet');
+    expect(where['wwii/willow-run']).toBe('sheet');
+    expect(where['wwii/executive-order-9066']).toBe('sheet');
   });
 });
 

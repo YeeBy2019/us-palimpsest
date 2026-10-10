@@ -237,7 +237,7 @@ src/
     inkbloom.js       a boundary growing, a stain spreading
   timeline/
     chapters.js       the eight chapters: years, material, anchors, audio
-    narration.js      annotations and the chapter card copy
+    narration.js      the beats: dated, located, authored story moments
   audio/
     ambience.js       per-chapter ambience, crossfaded
   ui/
@@ -491,6 +491,72 @@ not:
   not elapsed time. The fade *rate* should still be tuned per chapter, since a chapter's number of
   years and its reading duration are unrelated.
 
+## The story layer
+
+Everything else the atlas can say is geometry, and geometry has exactly one subject: a place whose
+outline changed on a date. That is why Chapters 6, 7 and 8 are blank in the current build — nothing
+inside their windows moves — and it is why the answer could not be *more* geometry. The narrative
+layer is a second **content type**, not a second view of the first one, and the distinction that
+matters is provenance: a boundary is derived and a story has to be authored.
+
+- **The unit is a beat** — a date, a geographic place, and one thing that happened. Stored in
+  `timeline/narration.js`, keyed by chapter, absent for the chapters nobody has written. A beat
+  carries `year` and `n` derived from its ISO date the same way `chapters.js` derives a chapter's
+  bounds, so there is one date form in the project and not two.
+- **`place` is a real coordinate, not a point picked off the plate.** It would have been easier to
+  store sheet coordinates once a camera existed; that would also have been a silent lie about where
+  Normandy is, in exactly the case where it matters. Measured, five of Chapter 6's nine places are
+  not on the drawing at all — see *What the story cannot do yet* in the README.
+- **The panel is a pure function of the date cursor.** `beatAt(beats, state.date)` is evaluated in
+  the frame loop beside the date stamp, so there is no story state, no queue and no player. Scrubbing
+  backwards, deep links and Play all carry the story because they all already moved the date.
+
+### Playing it needs the cursor to stop, not to slow down
+
+The one thing the state machine had to learn. The first version gave a written chapter a slower
+`pace` — a fraction of the chapter per second, uniform across it — sized so the chapter took one hold
+per beat. A play-through sampled on the real thing showed why that cannot work: a uniform pace makes
+the **gap between two dates** the reading time, so Executive Order 9066 (two months after Pearl
+Harbor) got six seconds and Midway (a year after that) got twenty-seven. Both numbers are artefacts of
+when the history happened.
+
+So `ChapterState` holds a list of dates and stands on each one for a duration:
+
+- `holds` — ascending fractional years, filled from `holdsFor(beats)`; `holdSeconds` — how long to
+  stand; `dwell` — seconds left at the current hold; `heldAt` — the hold last stood on.
+- The comparison in `#nextHold` is **inclusive of `from` and exclusive of `heldAt`**, and both bounds
+  are load-bearing. Inclusive, because Chapter 6's first beat is dated the day the chapter opens, so
+  on the first tick `from` and the hold are the same number — a strict comparison silently skips the
+  first beat of every chapter that opens on its own subject. Exclusive, because otherwise the cursor
+  arrives, stands, and finds the same hold again: a frozen atlas, and a failure with no symptom other
+  than sitting and watching.
+- **A frame that finishes a hold is not thrown away.** The remainder of `dt` goes into travelling;
+  otherwise the cursor stands one frame longer than the hold says, on every beat.
+- The landing is **exact** — the cursor is set to the hold's date rather than to `date + step` — for
+  the same reason a deep link rounds to the day: a card that appears a week early is a card about the
+  wrong thing.
+- A scrub (`aimDate`, `snapDate`) abandons a hold, and a chapter change clears `heldAt`, because
+  chapters share dates: each one opens where the last one closed.
+
+The state machine is told a pace, a list of dates and a duration. It never learns what is at any of
+them. `applyStoryTiming` in `main.js` is the whole of the coupling, and `env/chapter.js` stays free
+of any knowledge of history or of content.
+
+### The `@layer boot` hidden list is a trap
+
+`index.html` carries an `@layer boot` block that hides the chrome, the card, the story panel, the
+loader and the fatal message until the stylesheet lands, so a failed `ui.css` cannot leave the page
+in the browser's default styling. It sits in a cascade layer precisely so that `ui.css` wins over it
+wherever a bundler puts it — unlayered declarations beat layered ones.
+
+**That works only if the element declares its `display` in `ui.css`.** A layered `display: none` also
+beats the user agent's own `[hidden]` rule, so an element added to that list without an unlayered
+`display` can never be shown at all. Every other element in the list (`.chrome`, `.card`, `.loader`,
+`.fatal`) is a grid or a block in `ui.css`, which is what makes the pattern invisible until a new
+element joins it. The story panel joined it and did not, and the panel rendered nothing while
+reporting `hidden = false` with its text populated — one debugging session, now a `display: block`
+with a comment saying why.
+
 ## Decision log
 
 Settled on 2026-10-06:
@@ -571,11 +637,34 @@ Settled while building M0 (2026-10-07):
   1861 anchor, from the secession line to ten days before it. The reader still accepts a month or a
   bare year, because that is what a person types when passing a link on.
 
+Settled on 2026-10-10:
+
+- **The narrative layer is a second content type, not more annotation.** M2 as originally written —
+  annotations extracted from AHCB's `CHANGE` field — produces sentences like *"Nevada Territory gained
+  from Utah Territory"*: accurate, automatic, and still talk about the map rather than story. A story
+  has to be authored. It lives in `timeline/narration.js`, which the pipeline never reads, and a
+  chapter absent from it has not been written rather than failed to build.
+- **A chapter with beats holds the cursor instead of crawling past them.** See *Playing it needs the
+  cursor to stop, not to slow down*. A uniform pace makes the historical gap the reading time, which
+  is a number nobody chose.
+- **The state machine is told a pace, a list of dates and a duration, and nothing else.**
+  `env/chapter.js` stays innocent of content; the whole coupling is `applyStoryTiming` in `main.js`.
+- **Beats are bilingual and neither language is a gloss**, which is the shape `chapters.js` already
+  uses for `name` / `nameZh`. Pinned by test, because a half-written beat — English only — is not
+  obviously a mistake and would survive review.
+- **The five Chapter 6 places that are not on the drawing are pinned by a test.** It is a *pin* rather
+  than a guard: it asserts a measured fact about content and guards no function. Its value is that
+  adding a beat off the plate now forces the question while the camera work is still ahead of us.
+
 M0 is built end to end for **Chapter 2 Expansion (1783–1848)** and **Chapter 3 Division (1848–1865)** —
-the vertical slice's success criterion is a fifteen-second capture of Chapter 3. Nothing on the
-pre-M0 decision list is outstanding. What remains is implementation-shaped: the remaining six
-chapters' bundles, an annotation layer for the panels — which is now the only carrier of history
-inside them — and the quality tiers with
+the vertical slice's success criterion is a fifteen-second capture of Chapter 3 — and seven of the
+eight chapter bundles exist. Chapter 1's is a data decision rather than a missing task.
+
+The story layer is the newest part and the least finished. The mechanism is complete and Chapter 6 is
+written, so Chapters 6–8 are no longer contentless by construction — that was the point of building
+it. What remains splits cleanly: **editorial** work, which is the other seven chapters' beats at
+roughly a week of reading and writing each, and **implementation** work, which is a camera treatment
+for a place that is not on the drawing (M4), event markers and city lights, and the quality tiers with
 their persistence (M5).
 
 ## Attribution

@@ -5,6 +5,12 @@
  * a screen reader, and changing a label costs a string rather than a texture.
  * The canvas draws the sheet; this draws everything a person actually operates.
  *
+ * It also owns the story panel — the layer that speaks when the boundaries have
+ * nothing to say. The panel is not a second timeline: it reads the same date
+ * cursor the geometry reads, so `beatAt(beats, state.date)` is evaluated in
+ * `syncDate` beside the date stamp, and scrubbing, playing and deep-linking all
+ * move it without any of them knowing it exists.
+ *
  * It also owns the URL, which is the one piece of state the atlas has that can
  * be handed to someone else. `?chapter=division&date=1861-04-12&anchor=1861`
  * opens on the exact shot M0 is judged by, which makes the acceptance test
@@ -13,19 +19,47 @@
 
 import { isoToYear, parseIso, yearToIso, yearToLabel } from '../lib/dates.js';
 import { CHAPTERS } from '../timeline/chapters.js';
+import { beatAt, beatsFor } from '../timeline/narration.js';
 import { TRANSITION } from '../env/chapter.js';
 
 const SCRUB_STEPS = 1000;
 
+/**
+ * Half of the range input's thumb, in pixels.
+ *
+ * A range's track does not run the full width of the control: the browser
+ * insets it by half a thumb at each end, because the thumb's centre is what
+ * marks the value. A tick placed at a plain percentage of the control's width
+ * would therefore sit up to 4.5px away from the date it claims to mark — which
+ * at a chapter's scale is months, and the whole point of a tick is that it is
+ * in the right place. Kept in step with `::-webkit-slider-thumb` in `ui.css`.
+ */
+const THUMB_HALF = 4.5;
+
 export class Interface {
   /** Throttle clock for URL rewriting; see `#maybeWriteUrl`. */
   #lastUrl = 0;
+
+  /** This chapter's beats, in date order. Rebuilt on a chapter change. */
+  #beats = [];
+
+  /**
+   * The beat currently on the panel.
+   *
+   * Starts as `undefined` rather than `null` on purpose: `null` is a real value
+   * here — "the cursor has not reached the first beat" — so a chapter change
+   * that resets this to `null` would compare equal to a chapter with no beats
+   * and leave the outgoing chapter's story on screen. A sentinel no beat can
+   * hold is what forces the redraw.
+   */
+  #currentBeat = undefined;
 
   constructor(state) {
     this.state = state;
     this.dom = {
       chapters: document.getElementById('chapters'),
       scrub: document.getElementById('scrub'),
+      beats: document.getElementById('beats'),
       stamp: document.getElementById('stamp'),
       play: document.getElementById('play'),
       rewind: document.getElementById('rewind'),
@@ -34,6 +68,11 @@ export class Interface {
       cardIndex: document.getElementById('card-index'),
       cardName: document.getElementById('card-name'),
       cardMaterial: document.getElementById('card-material'),
+      story: document.getElementById('story'),
+      storyMeta: document.getElementById('story-meta'),
+      storyTitle: document.getElementById('story-title'),
+      storyBody: document.getElementById('story-body'),
+      storyBodyZh: document.getElementById('story-body-zh'),
       loader: document.getElementById('loader'),
       loaderText: document.getElementById('loader-text'),
     };
@@ -124,6 +163,69 @@ export class Interface {
     }
     this.dom.material.textContent = chapter.material.family;
     this.dom.scrub.value = String(Math.round(this.state.progress * SCRUB_STEPS));
+
+    // The story belongs to the chapter, so it is rebuilt with the chapter: the
+    // ticks on the scrub are re-placed and the panel is cleared. It falls out
+    // of the frame loop a moment later — this is not where the beat is chosen,
+    // only where the previous chapter's is taken down. A chapter change swaps
+    // the date to the new chapter's opening inside the dispersal, so the new
+    // beat is on screen before the sheet has finished reforming.
+    this.#beats = beatsFor(chapter);
+    this.#currentBeat = undefined;
+    this.#buildBeats(chapter);
+  }
+
+  /**
+   * Place a tick on the scrub for each of the chapter's beats.
+   *
+   * Rebuilt rather than reused, because the tick positions are fractions of
+   * *this chapter's* window: 1944 is at a very different place in a four-year
+   * chapter than in a hundred-and-sixty-year one.
+   */
+  #buildBeats(chapter) {
+    this.dom.beats.replaceChildren();
+    const span = chapter.end - chapter.start;
+    if (!(span > 0)) return;
+
+    for (const beat of this.#beats) {
+      const fraction = (beat.year - chapter.start) / span;
+      const tick = document.createElement('span');
+      tick.className = 'dock__beat';
+      tick.dataset.beat = beat.id;
+      tick.style.left = `calc(${THUMB_HALF}px + (100% - ${THUMB_HALF * 2}px) * ${fraction.toFixed(6)})`;
+      this.dom.beats.append(tick);
+    }
+  }
+
+  /** Point the panel at the beat in force at this date, if it has changed. */
+  #syncStory(year) {
+    const beat = beatAt(this.#beats, year);
+    if (beat === this.#currentBeat) return;
+    this.#currentBeat = beat;
+    this.#renderBeat(beat);
+  }
+
+  #renderBeat(beat) {
+    for (const tick of this.dom.beats.children) {
+      tick.dataset.current = String(Boolean(beat) && tick.dataset.beat === beat.id);
+    }
+
+    if (!beat) {
+      this.dom.story.hidden = true;
+      return;
+    }
+
+    this.dom.storyMeta.textContent = `${beat.date} · ${beat.place.name}`;
+    this.dom.storyTitle.textContent = `${beat.title} · ${beat.titleZh}`;
+    this.dom.storyBody.textContent = beat.body;
+    this.dom.storyBodyZh.textContent = beat.bodyZh;
+
+    this.dom.story.hidden = false;
+    // The same honest replay the chapter card uses: a CSS animation can only be
+    // restarted by taking the class off and forcing a reflow in between.
+    this.dom.story.classList.remove('is-in');
+    void this.dom.story.offsetWidth;
+    this.dom.story.classList.add('is-in');
   }
 
   /** Reflect the date cursor. Called every frame; cheap on purpose. */
@@ -131,6 +233,7 @@ export class Interface {
     const label = yearToLabel(year);
     if (this.dom.stamp.value !== label) this.dom.stamp.value = label;
     this.dom.scrub.value = String(Math.round(this.state.progress * SCRUB_STEPS));
+    this.#syncStory(year);
     this.#maybeWriteUrl();
   }
 

@@ -70,6 +70,86 @@ So the rule is a scoped yes:
 
 This is what the name means: the paper is reused, and the earlier ink is still faintly legible.
 
+## The story layer
+
+Every other layer in this atlas is geometry. A chapter's date range cuts boundaries, the timeline is a
+scrub over those boundaries, an anchor is a retained boundary state, the inset panels are boundary
+geometry, and the chapter card describes the *material* the plate is printed with. Between them the
+atlas knows exactly one kind of fact — **a place whose outline changed on a date** — and that is not
+enough to tell the history it is named after.
+
+It is enough for Chapters 2 to 5, where the outline genuinely moves. It is not enough for Chapters 6,
+7 and 8, where it does not: no state was admitted between 1912 and 1959, so those chapters draw the
+same coast for their whole window. A map that can only speak when a border moves has nothing to say
+about the Second World War.
+
+So there is a second content type, and it is a different kind of thing rather than more of the same.
+A boundary is **derived**: cut it, project it, draw it, and the atlas has said something with nobody's
+judgement in it. A story is **authored**: someone has to decide that Pearl Harbor is a moment and that
+the Willow Run bomber plant is another, and has to write the sentence. Nothing in AHCB contains the
+word *Hiroshima*.
+
+A **beat** is a moment: a date, a place on the earth, and one thing that happened.
+
+```js
+{ id: 'd-day', date: '1944-06-06', kind: 'battle',
+  place: { lon: -0.87, lat: 49.36, name: 'Normandy, France', nameZh: '法国诺曼底' },
+  title: 'D-Day', titleZh: '诺曼底登陆', body: '…', bodyZh: '…' }
+```
+
+That lives in `src/timeline/narration.js`. Chapter 6 is written; the other seven are not, and a
+chapter with no entry is one that has not been authored yet rather than one that failed to build —
+the same distinction as Chapter 1 shipping no bundle at all. Every string is carried in English and
+Chinese, the shape `chapters.js` already uses for `name` / `nameZh`; neither version is a translation
+of the other.
+
+The beats are written out here from the public record and cite nothing. The documentary is the
+chapter spine — `episodes` in `chapters.js` — and no frame, audio or transcript of it enters the
+repository; see *Licensing*.
+
+### It needed no player
+
+The panel is `beatAt(beats, state.date)` — the beat in force at the moment being shown — evaluated in
+the frame loop beside the date stamp. There is no story timeline, no queue and no play state. Play
+already moved a date; the panel only reads it. Three things then fall out for free rather than having
+to be built:
+
+- **Scrubbing tells the story backwards**, because the panel is a function of the cursor rather than
+  of a sequence.
+- **Deep links carry the story.** `?chapter=wwii&date=1944-06-06` opens on the Normandy card, so a
+  moment is something that can be pasted into a message.
+- **Play becomes documentary playback**, which is the point of the whole layer.
+
+### What it did cost, and why a pace was not enough
+
+Playing *is* the date cursor moving, so a chapter with something to read has to stop moving. The
+first attempt gave such a chapter a slower *pace* — a fraction of the chapter per second, uniform
+across it — sized so the chapter took one hold per beat. Sampled on the real thing, that is not a
+documentary: a uniform pace makes **the gap between two dates** the reading time, so Executive Order
+9066, two months after Pearl Harbor, was on screen for six seconds while Midway, a year later, sat
+there for twenty-seven. Neither number was chosen by anyone; both are artefacts of when the history
+happened to happen.
+
+So the cursor **stops** at each beat instead. `holdsFor` is the list of dates to stand at,
+`HOLD_SECONDS` is how long to stand there, and the pace degrades into the *walk between* beats. Every
+beat now gets the same reading time whether two moments are a month apart or a decade, and the walk
+varies instead — which is honest, because the walk is the part nobody has to read. While a beat is
+held, the geometry is held too: the frame is a held shot rather than a moving one.
+
+The state machine is told a pace, a list of dates and a duration, and never learns what is at any of
+them. `src/env/chapter.js` still knows nothing about history; the whole of the coupling is
+`applyStoryTiming` in `src/main.js`.
+
+### What the story cannot do yet
+
+**Most of Chapter 6 is not on the map.** Measured against the real projection, five of its nine places
+are off the drawing entirely — Midway, Normandy, Iwo Jima, Hiroshima and Tokyo — because the sheet is
+fitted to the lower forty-eight and at its scale the Pacific is past the west edge and Europe past the
+east. Of the four that are on it, three are on the sheet and one, Pearl Harbor, is inside the Hawaii
+panel. `pipeline.test.js` pins that split, so adding a beat in a place that is not drawn forces the
+question rather than quietly producing a camera target pointing at nothing. Turning a place into a
+camera move is M4's work and is not attempted here.
+
 ## Chapters
 
 Eight chapters. Contiguous, non-overlapping: every year belongs to exactly one chapter.
@@ -98,7 +178,7 @@ dated **1783-09-03** and its last boundary change is **1912-02-14**.
 | 3 Division | yes | 63 | |
 | 4 Industry | yes | 29 | |
 | 5 Boom and Bust | yes | 10 | Arizona completes the lower forty-eight on 1912-02-14. |
-| 6 WWII | yes | 0 | Static by history: nothing moved between 1912 and 1959. |
+| 6 WWII | yes | 0 | Static by history — and the first chapter with a written **story layer**: nine beats, 1941–1945. |
 | 7 Superpower | yes | 0 | The 1959 statehoods are the last dated events in the record, and they change nothing that is drawn: each inset keeps the outline it has had since 1867 and 1898. See below. |
 | 8 Millennium | yes | 0 | AHCB ends at 2000-12-31; see the TIGER/Line note under *Coverage limits*. |
 
@@ -112,10 +192,11 @@ problem:
   chapter is indistinguishable from a broken one from the outside.
 - **Chapters 6, 7 and 8 are plates, not histories.** This is not a gap in the data; it is what the
   record says. After 1912 the outline of the country stops moving, so those chapters cannot be
-  carried by boundary change and have to be carried by something else — cities and events. The
-  inset panels are no help here either: both appear inside Chapter 4, at 1867 and 1898, and are
-  static from the day they appear. So they buy Chapter 4 two visual events and buy Chapters 5–8
-  none at all.
+  carried by boundary change and have to be carried by something else. The inset panels are no help:
+  both appear inside Chapter 4, at 1867 and 1898, and are static from the day they appear, so they
+  buy Chapter 4 two visual events and buy Chapters 5–8 none at all. That "something else" is the
+  **story layer** — see *The story layer* — and Chapter 6 is its first chapter: nine authored beats
+  across 1941–1945, on a window in which not one boundary moves.
 
 ### What changed from the earlier draft, and why
 
@@ -408,9 +489,17 @@ insets* for what they do and do not buy, and *Build status*.
 
 ### M2 — Anchors and annotation
 
-Boundary-change annotations from AHCB's `CHANGE` field, city lights, event markers. This is content
-depth — exactly where the reference scored lowest with juries (content 7.89 against creativity 8.53).
-Treat it as a feature, not garnish.
+Content depth — exactly where the reference scored lowest with juries (content 7.89 against creativity
+8.53). The first half of this is **built**: the *story layer* carries authored beats and Chapter 6 is
+written. What remains is the other content types — boundary-change annotations from AHCB's `CHANGE`
+field, city lights, event markers — and the writing of the other seven chapters, which is editorial
+work rather than engineering, at roughly a week of reading and writing per chapter.
+
+Worth recording what M2 as originally written would have produced. `CHANGE`-field annotations are
+sentences like *"Nevada Territory gained from Utah Territory"*: accurate, auto-extracted, and more
+talk about the map rather than story. A narrative layer had to be a **new content type** rather than
+an extension of that one, because the difference is not subject matter but provenance — geometry is
+derived and a story has to be authored by someone.
 
 ### M3 — Sound
 
