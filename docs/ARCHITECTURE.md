@@ -237,7 +237,7 @@ src/
     inkbloom.js       a boundary growing, a stain spreading
   timeline/
     chapters.js       the eight chapters: years, material, anchors, audio
-    narration.js      the beats: dated, located, authored story moments
+    narration.js      the beats: dated, located, authored story moments, and their routes
   audio/
     ambience.js       per-chapter ambience, crossfaded
   ui/
@@ -248,7 +248,7 @@ src/
     dates.js          ISO <-> AHCB's YYYYMMDD <-> fractional years
     topojson.js       arc decoding, shared by the pipeline and the runtime
 pipeline/             AHCB shapefile -> per-chapter TopoJSON bundles
-  build.js            the whole run: decode, prune, project, simplify, quantise
+  build.js            the whole run: decode, prune, project, simplify, route, quantise
   lib/
     project.js        the Albers projection and the sheet fit
     topology.js       prune and remap, without rebuilding shared arcs
@@ -270,14 +270,27 @@ JavaScript.
 
 ```
 AHCB shapefile (142 MB, overlapping date-coded polygons)
-  -> filter to a chapter's date range
-  -> simplify with mapshaper, tolerance tuned per zoom tier
+  -> filter to a chapter's date range (half-open: START_N < chapter.endN)
+  -> project, each region through its own projector
+  -> simplify with Douglas-Peucker, tolerance tuned per zoom tier
+  -> append the panel frames and the chapter's authored story routes, un-simplified
   -> quantize and encode as TopoJSON
   -> one bundle per chapter
 ```
 
 Generated bundles are not committed. The pipeline directory is, and `npm run data:build`
 regenerates them.
+
+Two of those steps exist for reasons that are easy to undo by accident. The **half-open** filter is
+what makes a chapter's window `[from, to)` in the pipeline and in the tests at the same time; the
+inclusive version drew a closing-day feature twice and gave Chapter 1 a 42 KB bundle of boundary that
+could never reach opacity. And the **frames and routes go in after simplification**, because both are
+already the shape someone meant them to be: Douglas-Peucker would usually keep a rectangle rectangular
+and a march on its bends, and "usually" is not a property to ship a border or a road on.
+
+The pipeline reads exactly one field of the story layer — `figures` — and never its prose. That is why
+all eight chapters build whether or not anyone has written them, and why the writing is not on the
+critical path of the map.
 
 ### Beyond 2000
 
@@ -494,22 +507,73 @@ not:
 ## The story layer
 
 Everything else the atlas can say is geometry, and geometry has exactly one subject: a place whose
-outline changed on a date. That is why Chapters 6, 7 and 8 are blank in the current build — nothing
-inside their windows moves — and it is why the answer could not be *more* geometry. The narrative
-layer is a second **content type**, not a second view of the first one, and the distinction that
-matters is provenance: a boundary is derived and a story has to be authored.
+outline changed on a date. That is why Chapters 6, 7 and 8 have nothing of their own to draw — nothing
+inside their windows moves — and why Chapter 1 has nothing at all. It is also why the answer could not
+be *more* geometry. The narrative layer is a second **content type**, not a second view of the first
+one, and the distinction that matters is provenance: a boundary is derived and a story has to be
+authored.
 
 - **The unit is a beat** — a date, a geographic place, and one thing that happened. Stored in
-  `timeline/narration.js`, keyed by chapter, absent for the chapters nobody has written. A beat
-  carries `year` and `n` derived from its ISO date the same way `chapters.js` derives a chapter's
-  bounds, so there is one date form in the project and not two.
+  `timeline/narration.js`, keyed by chapter. All eight chapters are written as of 2026-10-10, a
+  hundred and eight beats, but the file's contract is unchanged by that: a chapter absent from it has
+  not been authored rather than failed to build. A beat carries `year` and `n` derived from its ISO
+  date the same way `chapters.js` derives a chapter's bounds, so there is one date form in the project
+  and not two.
 - **`place` is a real coordinate, not a point picked off the plate.** It would have been easier to
   store sheet coordinates once a camera existed; that would also have been a silent lie about where
-  Normandy is, in exactly the case where it matters. Measured, five of Chapter 6's nine places are
-  not on the drawing at all — see *What the story cannot do yet* in the README.
+  Normandy is, in exactly the case where it matters. Measured, **fourteen of the hundred and eight**
+  places are not on the drawing at all — the Canal, the Pacific and European theatres, Berlin, Korea,
+  Baikonur, Moscow, the Gulf and Abbottabad — and four more are inside a panel. See *What the story
+  cannot do yet* in the README.
 - **The panel is a pure function of the date cursor.** `beatAt(beats, state.date)` is evaluated in
   the frame loop beside the date stamp, so there is no story state, no queue and no player. Scrubbing
   backwards, deep links and Play all carry the story because they all already moved the date.
+
+### Figures: the one place a line is drawn by hand
+
+A beat may also carry **`figures`** — one or more polylines in real longitude and latitude — and this
+is the only exception to the rule that nothing on the plate is drawn by hand. Fourteen across twelve
+beats: the James River, the Great Wagon Road, the crest of the Proclamation Line, Nemacolin's Path,
+the road out of Boston to Concord, the march to Yorktown, Lewis and Clark, the Missouri Compromise
+parallel, the Erie Canal, the 49th parallel, the Oregon Trail, the Pony Express, Sherman's march, the
+first transcontinental railroad.
+
+Three rules keep it from becoming a place to put anything:
+
+- **A figure is a corridor, not a survey.** A boundary in this atlas is a claim about a surveyed edge,
+  so it is derived or it is wrong. A figure is a claim about a corridor, traced from published
+  descriptions and honest about being approximate — which is why every one carries a `note`, and why
+  the `note` says *schematic* when it is one.
+- **It belongs to a beat, and has no date of its own.** It is revealed when its beat's date passes and
+  is still on the sheet when the chapter closes. A line no sentence needs is decoration.
+- **The pipeline reads this field and nothing else.** `pipeline/build.js` projects `figures` into the
+  bundle and never looks at `title` or `body`, so an unwritten chapter still builds exactly like a
+  written one. The story layer must not become a build dependency of the map.
+
+They cost the runtime nothing, and that is deliberate rather than lucky. A figure enters the bundle as
+a `LineString` with a `start` and a `t`, which is precisely what a **panel frame** already is — so it
+inherits the date mask, the fade-in, the terminal handling and the dot dispersal from machinery that
+was already there. No new uniform, no second material, and no runtime projection that could disagree
+with the one the build used. The alternative that was tried first — projecting the routes at runtime,
+where the camera could use them directly — was abandoned for exactly that last reason.
+
+**Chapter 1 is the reason the mechanism exists.** Its window contains no state boundary at all: every
+feature reaching it starts on the day it closes. So a bundle for that chapter draws nothing but its own
+routes, and the chapter is the proof that the story layer is not decoration on the map. It also forced
+three changes elsewhere, all three of which are recorded in the decision log: the plate's clip became
+half-open, a land buffer that is legitimately empty no longer computes a bounding sphere, and a chapter
+marked `built` that produces nothing to draw is now an error rather than a blank sheet.
+
+**And a chapter that depends on figures depends on them from its first frame.** The lesson is worth
+stating as a rule rather than as an anecdote, because it is the one failure of this mechanism that no
+test could catch: Chapter 1's first written routes were dated 1763 and 1781, so the plate was bare
+paper from 1607 until 1763 — a hundred and fifty-six of the chapter's hundred and seventy-six years.
+Every guard passed. The bundle built, the routes projected, the geometry was on the drawing; it simply
+had not arrived yet. What found it was measuring the sheet rather than reading the tests: with the
+interface hidden, the darkest pixel in the first frame was **181** on a 0–255 scale, which is paper and
+nothing else. Three earlier routes — the James River at Jamestown, Nemacolin's Path in 1754, the road
+to Concord in 1775 — took it to **96**. The general form: *a layer that is revealed over time has to be
+checked at the beginning of the window, not at the end.*
 
 ### Playing it needs the cursor to stop, not to slow down
 
@@ -652,20 +716,52 @@ Settled on 2026-10-10:
 - **Beats are bilingual and neither language is a gloss**, which is the shape `chapters.js` already
   uses for `name` / `nameZh`. Pinned by test, because a half-written beat — English only — is not
   obviously a mistake and would survive review.
-- **The five Chapter 6 places that are not on the drawing are pinned by a test.** It is a *pin* rather
-  than a guard: it asserts a measured fact about content and guards no function. Its value is that
-  adding a beat off the plate now forces the question while the camera work is still ahead of us.
+- **The fourteen places that are not on the drawing are pinned by a test.** It is a *pin* rather than
+  a guard: it asserts a measured fact about content and guards no function. Its value is that adding a
+  beat off the plate now forces the question while the camera work is still ahead of us. It began as
+  five places in Chapter 6 and grew to fourteen across the atlas when the other seven chapters were
+  written; ninety land on the sheet and four inside a panel.
+- **All eight chapters are written.** The layer was proved on one chapter and then the other seven
+  followed — 108 beats, every chapter including Chapter 1. The consequence worth recording is not the
+  count but that Chapter 1 became *buildable*: a chapter whose window holds no state boundary has no
+  map to fall back on, so writing it forced the mechanism below to be general rather than a garnish.
+- **A beat may carry `figures`, and that is the only hand-drawn geometry in the atlas.** Fourteen of
+  them, in four chapters. See *Figures* above. The rules that bound it: a corridor rather than a
+  survey, always owned by a beat, and the only field of the story layer the pipeline reads. The
+  consequence is that the runtime needed no change at all — a figure is a `LineString` and inherits
+  everything a panel frame has.
+- **A chapter that draws only figures must have one in its first frame.** Chapter 1's first mark is
+  dated 1607, not 1763. The earlier arrangement passed every test and still left the plate bare for a
+  hundred and fifty-six years, which is the one thing the layer exists to prevent; it was found by
+  measuring the darkest pixel on the sheet rather than by reading a green test run. See *Figures*.
+- **Chapter 1's `built` flag flipped to true, and `built` now means "has something to draw."** It used
+  to mean "AHCB has boundary geometry inside this window." Chapter 1 has none and is not an empty
+  chapter, so the predicate was restated in terms of content: boundary geometry *or* authored figures.
+  The pipeline backs that up by refusing to write a bundle for a chapter marked built that produces
+  nothing, because a blank sheet and a failed build look identical from outside.
+- **Chapter 8's window runs to a constant, 2026-12-31, and the pipeline computes terminality against
+  the record rather than the window.** `NARRATIVE_PRESENT` is a literal rather than `new Date()` so the
+  build stays reproducible and deep links stay stable. The trap it opened is worth keeping: `t` — the
+  flag meaning "still alive when the chapter closes, so do not fade it out" — was computed against
+  `chapter.endN`, and once a window outlives the record that comparison is never true, so every feature
+  goes non-terminal and the whole plate dissolves to blank paper on the last frame. It is computed
+  against `min(chapter.endN, recordEndN)` now.
+- **The chapter clip is half-open: `START_N < chapter.endN`.** A chapter's window is `[from, to)`,
+  which is what `pipeline.test.js` already asserted when it checked that no two chapters claim the same
+  instant — and the inclusive version quietly disagreed with it. Two visible symptoms: a feature dated
+  exactly on a chapter's closing day was drawn in that chapter *and* the next, and Chapter 1 swept up
+  all fifteen features that begin on 1783-09-03, shipping 457 arcs of 42 KB of boundary that faded in
+  and never reached opacity before the chapter ended.
 
 M0 is built end to end for **Chapter 2 Expansion (1783–1848)** and **Chapter 3 Division (1848–1865)** —
-the vertical slice's success criterion is a fifteen-second capture of Chapter 3 — and seven of the
-eight chapter bundles exist. Chapter 1's is a data decision rather than a missing task.
+the vertical slice's success criterion is a fifteen-second capture of Chapter 3 — and **all eight**
+chapter bundles now exist, including Chapter 1's, which contains no boundary polygon at all.
 
-The story layer is the newest part and the least finished. The mechanism is complete and Chapter 6 is
-written, so Chapters 6–8 are no longer contentless by construction — that was the point of building
-it. What remains splits cleanly: **editorial** work, which is the other seven chapters' beats at
-roughly a week of reading and writing each, and **implementation** work, which is a camera treatment
-for a place that is not on the drawing (M4), event markers and city lights, and the quality tiers with
-their persistence (M5).
+The story layer is the newest part, and the writing is finished. What remains splits cleanly:
+**implementation** work, which is a camera treatment for a place that is not on the drawing (M4 — and
+its brief is now a measured list of fourteen places), event markers and city lights, and the quality
+tiers with their persistence (M5). No **editorial** work remains; if a chapter's beats need revising,
+that is a revision rather than a gap.
 
 ## Attribution
 

@@ -393,7 +393,8 @@ export class ChapterState {
    * - **Exclusive of `heldAt`.** Otherwise the cursor arrives at a hold, stands
    *   there for the hold, and then finds it again — forever.
    *
-   * A linear scan, because a chapter has nine beats and the list is sorted.
+   * A linear scan, because the longest chapter has sixteen beats and the list is
+   * sorted.
    */
   #nextHold(from, to) {
     for (const hold of this.holds) {

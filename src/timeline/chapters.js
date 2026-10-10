@@ -25,32 +25,35 @@
  * allowed a hard hue shift: Division (dark red), WWII (radar green) and
  * Millennium (screen white). Because the shift is rare, it lands.
  *
- * ## What `built` means, and why the eight chapters do not all carry one
+ * ## What `built` means
  *
  * `built` says "a bundle for this chapter exists on disk", and the pipeline
- * skips every chapter without it. It is a function of the *data*, not of the
- * schedule: a chapter is buildable when AHCB has something to draw inside its
- * window.
+ * skips every chapter without it. It is a function of the *content*, not of the
+ * schedule: a chapter is buildable when it has something to draw inside its
+ * window — boundary geometry from AHCB, or the authored `figures` that a beat
+ * may carry (see `timeline/narration.js`). All eight carry one as of
+ * 2026-10-10; before the story layer existed, Chapter 1 did not.
  *
- * Measured against the bundled state-level record, that splits the atlas in
- * two. The record's earliest feature is dated 1783-09-03 and its last boundary
- * change is 1912-02-14, so:
+ * Measured against the bundled state-level record, the boundary half of that
+ * splits the atlas in two. The record's earliest feature is dated 1783-09-03
+ * and its last boundary change is 1912-02-14, so:
  *
- * - **Chapter 1, Founding (1607–1783) is not buildable and stays off.** Every
- *   one of the fifteen features that reaches its window starts on 1783-09-03 —
- *   the day the chapter *closes*. Cut to that window the sheet would be blank
- *   for all one hundred and seventy-six years and then flicker into a map on
- *   the last frame. AHCB does hold colonial boundaries, but from 1629 onward
- *   and at county level; drawing them means adopting a second, much larger
- *   dataset, and county geometry is a stated non-goal for now. See
+ * - **Chapter 1, Founding (1607–1783) has no boundary content, and never
+ *   will.** Every one of the fifteen features reaching its window starts on
+ *   1783-09-03 — the day the chapter *closes*. AHCB does hold colonial
+ *   boundaries, but from 1629 onward and at county level; drawing them means
+ *   adopting a second, much larger dataset, and county geometry is a stated
+ *   non-goal for now. So this chapter is carried **entirely** by the story
+ *   layer: its bundle holds no boundary polygon at all, only the routes its own
+ *   beats carry. It is the chapter that proves the layer is not decoration. See
  *   `docs/ARCHITECTURE.md`.
  * - **Chapters 6, 7 and 8 are buildable but boundary-static.** No state was
  *   admitted between 1912 and 2000, so nothing inside those windows moves.
  *   They are not empty — each draws the full forty-eight-state plate plus the
  *   two inset panels, and the all-`aFrom`-zero path is a genuinely different
  *   code path from the one the first four chapters exercise. Their content is
- *   not boundaries, though. It is the story layer — authored beats, one chapter
- *   of which is written. And the panels do not rescue them: each panel is static
+ *   not boundaries, though. It is the story layer — 39 authored beats across
+ *   the three of them. And the panels do not rescue them: each panel is static
  *   from the day it appears inside Chapter 4, because AHCB records every version
  *   of Alaska's outline as the same shape under a new name. See
  *   `timeline/narration.js` and the README.
@@ -116,6 +119,17 @@ function chapter(spec) {
   };
 }
 
+/**
+ * Where the atlas's story stops, as a fixed date rather than `new Date()`.
+ *
+ * A chapter window that moved at midnight would make the build non-reproducible
+ * and every deep link unstable, so the present is a constant that somebody
+ * bumps on purpose. It is the end of Chapter 8 and nothing else, and it is
+ * declared here rather than beside that chapter because the array literal below
+ * reads it during module evaluation.
+ */
+const NARRATIVE_PRESENT = '2026-12-31';
+
 /** @type {Array<object>} */
 export const CHAPTERS = [
   chapter({
@@ -140,12 +154,13 @@ export const CHAPTERS = [
     },
     transition: 'Ink blooming across paper',
     audio: 'Church bell, sawing',
-    // Not buildable against the current record — see the long note at the head
-    // of this file. Every feature that reaches this window begins on its last
-    // day, so a bundle cut to it is 176 years of blank paper. Left off rather
-    // than shipped empty, because an empty chapter is indistinguishable from a
-    // broken one from the outside.
-    built: false,
+    // Built, but with no boundary geometry inside it: no feature in the record
+    // begins before this window closes, so the bundle holds only the routes the
+    // chapter's own beats carry (see `timeline/narration.js`). A chapter with
+    // no plate and a written story is not an empty chapter — the panel, the
+    // ticks and the play-through all work — and it is the honest drawing of a
+    // period in which there was no United States to outline.
+    built: true,
   }),
   chapter({
     id: 'expansion',
@@ -383,9 +398,18 @@ export const CHAPTERS = [
     name: 'Millennium',
     nameZh: '千禧',
     from: '1989-11-09',
-    // The chapter runs to the present, but AHCB's record stops at 2000; from
-    // there the geometry comes from TIGER/Line. See docs/ARCHITECTURE.md.
-    to: '2000-12-31',
+    // The window runs to the narrative present, which is *past* the last day
+    // the boundary record can speak to (2000-12-31). That is deliberate: this
+    // chapter's story carries events AHCB has no opinion about, and clamping
+    // the window to the record would put them out of the cursor's reach.
+    //
+    // It has one consequence the pipeline has to know about. `t`, the flag
+    // meaning "still alive when the chapter ends, so do not fade it out", is
+    // computed against the record's end rather than the window's — otherwise
+    // every feature in this bundle would be non-terminal and the whole plate
+    // would dissolve to blank paper on the chapter's last frame.
+    // See `pipeline/build.js`.
+    to: NARRATIVE_PRESENT,
     episodes: '12 Millennium',
     material: {
       family: 'Clean screen white, survey blue',
@@ -401,11 +425,11 @@ export const CHAPTERS = [
     },
     transition: 'A stream of light data',
     audio: 'Keyboard, city hum',
-    // The chapter runs to the present, but the record stops at 2000-12-31, so
-    // there is nothing here to move either — and no anchors, for the same
-    // reason as Chapter 6. Note the endpoint: `to` is the last day AHCB can
-    // speak to, not the present day. The README's "1989–present" is the
-    // narrative reading of the chapter, not the extent of its geometry.
+    // The record stops at 2000-12-31, so there is nothing here to move either —
+    // and no anchors, for the same reason as Chapter 6. The README's
+    // "1989–present" is now literally the window: see NARRATIVE_PRESENT, and
+    // note that the geometry inside this window is one static plate for its
+    // whole length.
     built: true,
   }),
 ];

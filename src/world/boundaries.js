@@ -136,7 +136,11 @@ function buildFill(geometries, arcs, sheet, chapterStart) {
   geometry.setAttribute('aTerminal', new THREE.Float32BufferAttribute(terminals, 1));
   geometry.setAttribute('aFrom', new THREE.Float32BufferAttribute(froms, 1));
   geometry.setIndex(indices);
-  geometry.computeBoundingSphere();
+  // An empty buffer has no bounding sphere to compute and three.js warns about
+  // the NaN radius it arrives at. Chapter 1 is the real case: its window holds
+  // no boundary polygon at all, only story routes, so the land fill is
+  // legitimately nothing.
+  if (positions.length) geometry.computeBoundingSphere();
 
   return { geometry, triangles: indices.length / 3, skipped };
 }
@@ -244,7 +248,7 @@ function buildOutline(geometries, arcs, sheet, spans, chapterStart) {
   geometry.setAttribute('aFrom', new THREE.Float32BufferAttribute(froms, 1));
   geometry.setAttribute('aSeed', new THREE.Float32BufferAttribute(seeds, 1));
   geometry.setIndex(indices);
-  geometry.computeBoundingSphere();
+  if (positions.length) geometry.computeBoundingSphere();
 
   return { geometry, segments, positions };
 }

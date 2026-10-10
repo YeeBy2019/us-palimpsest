@@ -143,10 +143,11 @@ export class Interface {
 
       button.append(num, name, years);
 
-      // The chapters with no bundle are shown, disabled, rather than hidden:
-      // the eight-chapter spine is the shape of the project, and a selector
-      // that showed only the buildable ones would misrepresent it. At present
-      // that is Chapter 1 alone — see the head of `timeline/chapters.js`.
+      // A chapter with no bundle is shown, disabled, rather than hidden: the
+      // eight-chapter spine is the shape of the project, and a selector that
+      // showed only the buildable ones would misrepresent it. Nothing is
+      // disabled at present — Chapter 1 builds, from its own story routes, and
+      // this branch exists for a chapter that has not been authored yet.
       if (chapter.built) {
         button.addEventListener('click', () => this.state.goTo(chapter));
       }

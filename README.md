@@ -10,6 +10,11 @@ can explore. Time is the primary axis: the timeline advances chapter by chapter,
 outward like ink, cities light up one by one, and one era gives way to the next through a
 dispersal of dots that settles back into the paper.
 
+It is also, from the first chapter to the last, **written**: eight chapters carrying a hundred and
+eight dated moments — a road, a march, a surrender, a speech — that the cursor stops on and reads.
+Where the country's outline has stopped moving, that story is not decoration on the map. It *is* what
+the plate is drawn from.
+
 Art direction follows [Chartogne-Taillet](https://chartogne-taillet.com/en) — built by Immersive
 Garden with Bruno Simon, Awwwards Site of the Day, 2 December 2020. What we take from it: an
 engraved-map aesthetic, watercolour washes on visible paper, a restrained palette, and one single
@@ -78,10 +83,11 @@ geometry, and the chapter card describes the *material* the plate is printed wit
 atlas knows exactly one kind of fact — **a place whose outline changed on a date** — and that is not
 enough to tell the history it is named after.
 
-It is enough for Chapters 2 to 5, where the outline genuinely moves. It is not enough for Chapters 6,
-7 and 8, where it does not: no state was admitted between 1912 and 1959, so those chapters draw the
-same coast for their whole window. A map that can only speak when a border moves has nothing to say
-about the Second World War.
+It is enough for Chapters 2 to 5, where the outline genuinely moves. It is not enough for Chapter 1,
+whose window contains no state boundary at all, nor for Chapters 6, 7 and 8, where the outline has
+stopped: no state was admitted between 1912 and 1959, so those chapters draw the same coast for their
+whole window. A map that can only speak when a border moves has nothing to say about the Second World
+War.
 
 So there is a second content type, and it is a different kind of thing rather than more of the same.
 A boundary is **derived**: cut it, project it, draw it, and the atlas has said something with nobody's
@@ -97,15 +103,57 @@ A **beat** is a moment: a date, a place on the earth, and one thing that happene
   title: 'D-Day', titleZh: '诺曼底登陆', body: '…', bodyZh: '…' }
 ```
 
-That lives in `src/timeline/narration.js`. Chapter 6 is written; the other seven are not, and a
-chapter with no entry is one that has not been authored yet rather than one that failed to build —
-the same distinction as Chapter 1 shipping no bundle at all. Every string is carried in English and
-Chinese, the shape `chapters.js` already uses for `name` / `nameZh`; neither version is a translation
-of the other.
+That lives in `src/timeline/narration.js`. **All eight chapters are written as of 2026-10-10 — a
+hundred and eight beats**, from the founding of Jamestown to the attack on the Capitol. A chapter
+with no entry there is one that has not been authored yet rather than one that failed to build, which
+is a distinction the file keeps even now that nothing is missing from it. Every string is carried in
+English and Chinese, the shape `chapters.js` already uses for `name` / `nameZh`; neither version is a
+translation of the other.
 
 The beats are written out here from the public record and cite nothing. The documentary is the
 chapter spine — `episodes` in `chapters.js` — and no frame, audio or transcript of it enters the
 repository; see *Licensing*.
+
+### The one place a line is drawn by hand
+
+Some of what a story has to show is not something the record can draw: a road, a march, a survey line,
+a parallel named by an act of Congress rather than by a surveyor. A beat may therefore carry
+**`figures`** — one or more polylines in real longitude and latitude, revealed on the plate when the
+cursor passes the beat's date, exactly like a boundary.
+
+Fourteen of them, across twelve beats in four chapters. The James River up to Jamestown; the Great
+Wagon Road and the crest of the Proclamation Line of 1763; Nemacolin's Path to the Great Meadows; the
+road out of Boston to Concord; the allied march to Yorktown; Lewis and Clark; the parallel named by
+the Missouri Compromise; the Erie Canal; the 49th parallel and the Oregon Trail; the Pony Express;
+Sherman's march to the sea; the first transcontinental railroad.
+
+Three rules, and they are what stops this from becoming a place to put anything:
+
+- **A figure is a corridor, not a survey.** Everything else drawn on this plate is derived and exact.
+  A figure is traced from published descriptions and is honest about being approximate — which is why
+  each carries a `note`, and why the note says *schematic* when it is one.
+- **It belongs to a beat.** A figure has no date of its own; it appears when its beat does. A line no
+  sentence needs is decoration.
+- **The pipeline reads this field and nothing else.** `pipeline/build.js` projects `figures` into the
+  chapter bundle and never looks at `title` or `body`, so a chapter nobody has written still builds
+  the same way a written one does. The story layer cannot become a build dependency of the map.
+
+**Chapter 1 would not be on the plate without them.** No state boundary begins anywhere inside its
+window — every feature that reaches it starts on its closing day — so the only thing a bundle for that
+chapter can draw is its own routes. It is where the atlas stops being a map with a commentary on it
+and becomes a commentary with a map.
+
+And a chapter that depends on figures depends on them **from its first frame**, not from its best
+beat. Which is a rule this project learned by measuring: Chapter 1's first written routes were dated
+1763 and 1781, and the plate was therefore bare paper from 1607 until 1763 — a hundred and fifty-six
+of the chapter's hundred and seventy-six years, which is precisely the defect the layer exists to fix.
+Three earlier routes, at 1607, 1754 and 1775, are the answer, and the measured check is the darkest
+pixel on the sheet: 181 before, 96 after.
+
+They cost the runtime nothing, because a figure enters the bundle as a `LineString` — which is exactly
+what the inset panel frames already are. So it inherits the date mask, the fade-in and the dot
+dispersal from machinery that was already there: no new uniform, no second material, and no runtime
+projection that could disagree with the one the build used.
 
 ### It needed no player
 
@@ -142,13 +190,21 @@ them. `src/env/chapter.js` still knows nothing about history; the whole of the c
 
 ### What the story cannot do yet
 
-**Most of Chapter 6 is not on the map.** Measured against the real projection, five of its nine places
-are off the drawing entirely — Midway, Normandy, Iwo Jima, Hiroshima and Tokyo — because the sheet is
-fitted to the lower forty-eight and at its scale the Pacific is past the west edge and Europe past the
-east. Of the four that are on it, three are on the sheet and one, Pearl Harbor, is inside the Hawaii
-panel. `pipeline.test.js` pins that split, so adding a beat in a place that is not drawn forces the
-question rather than quietly producing a camera target pointing at nothing. Turning a place into a
-camera move is M4's work and is not attempted here.
+**Fourteen of the hundred and eight beats are not on the drawing.** Measured against the real
+projection rather than assumed: ninety land on the sheet, four land inside a panel — Pearl Harbor and
+two Hawaii beats in the Hawaii inset, the Alaska statehood in the Alaska inset — and fourteen fall off
+the paper entirely. They are the Panama Canal, and then the whole of the Pacific and European wars,
+the Berlin airlift and the Wall, Korea, Sputnik, the Gulf, the end of the Soviet Union, and the
+compound in Abbottabad.
+
+That is what the history does, not a defect in the data. The sheet is fitted to the lower forty-eight,
+so at its scale the Pacific is past the west edge and Europe past the east. The alternative would be
+to pick an approximate point on the plate and call it Normandy, which lies about where Normandy is —
+silently, and in exactly the case where it matters.
+
+So `pipeline.test.js` pins the split rather than the intent. Adding a beat in a place that is not drawn
+now forces the question, instead of quietly producing a camera target pointing at nothing. Turning a
+place into a camera move is M4's work, and those fourteen are its brief.
 
 ## Chapters
 
@@ -167,36 +223,41 @@ Eight chapters. Contiguous, non-overlapping: every year belongs to exactly one c
 
 ### Build status
 
-Seven of the eight chapters have geometry. What a chapter can show is a property of the data,
-not of the schedule, and the state-level record is bounded at both ends: its earliest feature is
-dated **1783-09-03** and its last boundary change is **1912-02-14**.
+All eight chapters are built, and what a chapter can show is a property of the data rather than of the
+schedule. The state-level record is bounded at both ends: its earliest feature is dated **1783-09-03**
+and its last boundary change is **1912-02-14**. So boundary geometry carries Chapters 2 to 5 and then
+stops — and from Chapter 6 on, the plate is static by history and the chapter has to be carried by
+something else.
 
-| Chapter | Geometry | Boundary change inside the window | Notes |
-| ------- | -------- | --------------------------------- | ----- |
-| 1 Founding | none | — | AHCB's state-level synthesis begins at 1783, on this chapter's closing day. See below. |
-| 2 Expansion | yes | 108 features begin | |
-| 3 Division | yes | 63 | |
-| 4 Industry | yes | 29 | |
-| 5 Boom and Bust | yes | 10 | Arizona completes the lower forty-eight on 1912-02-14. |
-| 6 WWII | yes | 0 | Static by history — and the first chapter with a written **story layer**: nine beats, 1941–1945. |
-| 7 Superpower | yes | 0 | The 1959 statehoods are the last dated events in the record, and they change nothing that is drawn: each inset keeps the outline it has had since 1867 and 1898. See below. |
-| 8 Millennium | yes | 0 | AHCB ends at 2000-12-31; see the TIGER/Line note under *Coverage limits*. |
+| Chapter | Boundary geometry | Boundary change inside the window | Story beats | Notes |
+| ------- | ----------------- | --------------------------------- | ----------- | ----- |
+| 1 Founding | routes only | — | 14 | AHCB's state-level synthesis begins at 1783, on this chapter's closing day. Carried entirely by its story. See below. |
+| 2 Expansion | yes | 108 features begin | 13 | |
+| 3 Division | yes | 63 | 15 | |
+| 4 Industry | yes | 29 | 13 | |
+| 5 Boom and Bust | yes | 10 | 14 | Arizona completes the lower forty-eight on 1912-02-14. |
+| 6 WWII | yes | 0 | 9 | Static by history — and the first chapter written the other way: nine beats across 1941–1945, on a window in which not one boundary moves. |
+| 7 Superpower | yes | 0 | 16 | The 1959 statehoods are the last dated events in the record, and they change nothing that is drawn: both are in the insets, and each inset keeps the outline it has had since 1867 and 1898. See below. |
+| 8 Millennium | yes | 0 | 14 | AHCB ends at 2000-12-31 and the window runs to 2026-12-31; see *Coverage limits*. |
 
-Two chapters need something the current data does not provide, and neither is a scheduling
-problem:
+Two things about that table are worth stating at full strength, because both are load-bearing:
 
-- **Chapter 1 has no geometry at all.** Every feature that reaches its window starts on its closing
-  day, so a bundle cut to it would be one hundred and seventy-six years of blank paper followed by a
-  map on the last frame. AHCB does hold colonial boundaries, but from 1629 and at county level;
-  drawing them means adopting a second, much larger dataset. Left off deliberately — an empty
-  chapter is indistinguishable from a broken one from the outside.
+- **Chapter 1 has no boundary geometry, and is built anyway.** Every feature that reaches its window
+  starts on its closing day, so a bundle cut to boundaries alone would be a hundred and seventy-six
+  years of blank paper followed by a map on the last frame. The chapter is instead drawn from the
+  routes its own beats carry — the James River, the Great Wagon Road, the Proclamation Line, the road
+  to Concord, the march to Yorktown — which is the point at which the story layer stops being a
+  companion to the map and becomes the thing the plate is drawn from. AHCB does hold colonial
+  boundaries, but from 1629 and at county level; drawing them means adopting a second, much larger
+  dataset, and county geometry is a stated non-goal. An empty chapter is indistinguishable from a
+  broken one from the outside, and that was the reason for leaving Chapter 1 off in the first place —
+  so the pipeline now refuses to write a bundle for a chapter marked `built` that has nothing in it.
 - **Chapters 6, 7 and 8 are plates, not histories.** This is not a gap in the data; it is what the
   record says. After 1912 the outline of the country stops moving, so those chapters cannot be
-  carried by boundary change and have to be carried by something else. The inset panels are no help:
-  both appear inside Chapter 4, at 1867 and 1898, and are static from the day they appear, so they
-  buy Chapter 4 two visual events and buy Chapters 5–8 none at all. That "something else" is the
-  **story layer** — see *The story layer* — and Chapter 6 is its first chapter: nine authored beats
-  across 1941–1945, on a window in which not one boundary moves.
+  carried by boundary change and have to be carried by something else — 39 authored beats across the
+  three of them, on windows in which not one boundary moves. The inset panels are no help: both
+  appear inside Chapter 4, at 1867 and 1898, and are static from the day they appear, so they buy
+  Chapter 4 two visual events and buy Chapters 5–8 none at all.
 
 ### What changed from the earlier draft, and why
 
@@ -240,7 +301,7 @@ problem:
 | Shaders | GLSL | Procedural paper, engraved-edge wobble, hatch, dot dispersal |
 | Post-processing | Custom GLSL composite | Tone map, paper grain, grade and sharpen-upscale in one pass. No `EffectComposer` |
 | Camera and motion | GSAP | `timeline` for authored sequences, `quickTo` for continuous state, `set` for snaps — see the note below |
-| Data format | Interval-coded TopoJSON | Simplified per zoom tier, quantized |
+| Data format | Interval-coded TopoJSON | Simplified at one published tolerance and quantized — one tier is honest at state level |
 | Labels | MSDF text (`troika-three-text`) | Resolution-independent, holds up at any zoom |
 | Audio | Web Audio API | Per-chapter ambience, crossfaded; starts on first user gesture |
 | Build | Vite, plain JavaScript | ES modules. No TypeScript: the shader work lives in injected GLSL strings and uniform objects, where types earn little and cost friction |
@@ -258,15 +319,18 @@ of it can reach a browser as-is. The pipeline is:
 
 ```
 AHCB shapefile
-  → filter to a chapter's date range
-  → simplify with mapshaper (tolerance tuned per zoom tier)
+  → filter to a chapter's date range (half-open at the chapter's end)
+  → project, each region through its own projector
+  → simplify with Douglas-Peucker (one tolerance, from the pixel budget)
+  → append the panel frames and the chapter's authored story routes, un-simplified
   → quantize and encode as TopoJSON
   → one bundle per chapter, lazy-loaded
 ```
 
 Each feature keeps its `START_DATE` / `END_DATE`, so boundaries are derived per date at runtime
 rather than pre-baked per date. There are no snapshot piles to ship — which is also how the
-reference project works.
+reference project works. The frames and the routes join the bundle *after* simplification, because
+both are already the shape someone meant them to be and Douglas-Peucker would only sometimes agree.
 
 ### Animation: GSAP, and why it is not hand-rolled
 
@@ -399,19 +463,22 @@ require every quality tier to stay legible.
 
 - **Nothing before 1629.** Chapter 1 opens in 1607 for the narrative, but boundary geometry only
   exists from 1629. Pre-1629 is represented by settlement lights, never by filled territory. In the
-  bundled state-level record the floor is later still — **1783-09-03** — which is why Chapter 1 has
-  no bundle: see *Build status* above.
+  bundled state-level record the floor is later still — **1783-09-03** — which is why Chapter 1's
+  bundle holds no boundary polygon at all, only the routes its own beats carry: see *Build status*
+  above.
 - **Nothing moves after 1912.** No state was admitted between Arizona in February 1912 and Alaska in
   January 1959, and the two admissions after that gap move no line either — both are in the insets,
   and the insets keep the outline they already had. Chapters 6, 7 and 8 therefore draw a lower
   forty-eight whose outline is fixed alongside two panels that were fixed long before them, so their
-  content has to come from another layer. This is a fact about American history rather than a
-  shortcoming of the source.
-- **AHCB stops at 2000; the record does not.** Chapter 8 runs to the present, so its geometry from
-  2000 on comes from **TIGER/Line** and its statistics from **NHGIS**. Those sources publish
-  per-census snapshots rather than event-dated intervals, so Chapter 8 interpolates between fixed
-  states instead of growing continuously. Honest rather than a compromise: post-2000 change is real
-  but thin, and the geometry barely moves.
+  content comes from another layer — the story layer, which is written. This is a fact about American
+  history rather than a shortcoming of the source.
+- **AHCB stops at 2000; the record does not.** Chapter 8 runs to the present — literally so: its
+  window closes on **2026-12-31**, a constant somebody bumps on purpose rather than `new Date()`,
+  because a window that moved at midnight would make the build non-reproducible and every deep link
+  unstable. Its geometry from 2000 on comes from **TIGER/Line** and its statistics from **NHGIS**.
+  Those sources publish per-census snapshots rather than event-dated intervals, so Chapter 8
+  interpolates between fixed states instead of growing continuously. Honest rather than a compromise:
+  post-2000 change is real but thin, and the geometry barely moves.
 - **Alaska, Hawaii and the District of Columbia cannot simply be dropped.** The Mullen map excludes
   them, and an earlier draft of this document inherited that scope without examining it. AHCB itself
   covers all fifty states and the District. Excluding them is not historically neutral: the Alaska
@@ -482,24 +549,26 @@ iterate on the shader before writing another feature.
 All eight chapters. Chapter selector, per-chapter time scales, anchor layers, transitions, camera
 states. Audio stubbed.
 
-Seven of eight chapters are built and navigate; Chapter 1 is blocked on pre-1783 data rather than on
-code. The inset panels are in: both appear inside Chapter 4, at 1867 and 1898, and each is static
-from the day it appears. They are the last new shapes the record draws. See *Projection and the
-insets* for what they do and do not buy, and *Build status*.
+All eight chapters are built and navigate — including Chapter 1, which carries no boundary geometry at
+all and is drawn entirely from its own story routes. The inset panels are in: both appear inside
+Chapter 4, at 1867 and 1898, and each is static from the day it appears. They are the last new shapes
+the record draws. What is left on this milestone is the sound, which is M3. See *Projection and the
+insets* for what the panels do and do not buy, and *Build status* for the chapters.
 
 ### M2 — Anchors and annotation
 
 Content depth — exactly where the reference scored lowest with juries (content 7.89 against creativity
-8.53). The first half of this is **built**: the *story layer* carries authored beats and Chapter 6 is
-written. What remains is the other content types — boundary-change annotations from AHCB's `CHANGE`
-field, city lights, event markers — and the writing of the other seven chapters, which is editorial
-work rather than engineering, at roughly a week of reading and writing per chapter.
+8.53). The writing is **done**: all eight chapters carry authored beats, a hundred and eight of them,
+and Chapter 1 is drawn from its own. What remains is the other content types — boundary-change
+annotations from AHCB's `CHANGE` field, city lights, event markers.
 
 Worth recording what M2 as originally written would have produced. `CHANGE`-field annotations are
 sentences like *"Nevada Territory gained from Utah Territory"*: accurate, auto-extracted, and more
 talk about the map rather than story. A narrative layer had to be a **new content type** rather than
 an extension of that one, because the difference is not subject matter but provenance — geometry is
-derived and a story has to be authored by someone.
+derived and a story has to be authored by someone. It also had to be allowed to *draw*: eleven of the
+fourteen authored figures are not boundaries at all — a river, roads, marches, a canal, a railroad —
+and one whole chapter is made of nothing else.
 
 ### M3 — Sound
 
@@ -523,12 +592,13 @@ fallback, deployment.
   without it.
 - **County-level geometry at launch.** Seventeen thousand plus polygons. State and territory level
   first.
-- **Anything before 1629 or after 2000.**
+- **Anything before 1629 or after 2000.** Bound to *boundary geometry*, not to the atlas: the story
+  runs to the present, and a boundary after 2000 would have to be invented rather than sourced.
 
 ## Development
 
-Not scaffolded yet. The module layout, the render passes, the quality governor and the loading
-order are specified in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); in summary:
+The module layout, the render passes, the quality governor and the loading order are specified in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); in summary:
 
 ```
 src/

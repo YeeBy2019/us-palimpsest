@@ -19,6 +19,7 @@ import { geoMercator } from 'd3-geo';
 
 import { CHAPTERS, isoToN, isoToYear } from '../src/timeline/chapters.js';
 import { BEATS } from '../src/timeline/narration.js';
+import { nToIso } from '../src/lib/dates.js';
 import { decodeArcs, eachArcIndex, polygonRings, ringArea } from '../src/lib/topojson.js';
 import { PANEL_RECTS, createProjectors, fitPanel, fitSheet } from './lib/project.js';
 import { MAINLAND, PANEL_REGIONS, regionOf } from './lib/regions.js';
@@ -550,7 +551,7 @@ describe('the story places against the real map', () => {
    */
   const source = hasRecord ? JSON.parse(readFileSync(SOURCE, 'utf8')) : null;
 
-  it.skipIf(!hasRecord)('has a place on the drawing for four of these beats and none for five', () => {
+  it.skipIf(!hasRecord)('puts ninety of a hundred and eight beats on the drawing, and names the fourteen it cannot', () => {
     const arcs = decodeArcs(source);
     const projectors = createProjectors();
 
@@ -597,28 +598,196 @@ describe('the story places against the real map', () => {
       }
     }
 
-    // Off the plate entirely. Midway and Iwo Jima are in the Pacific beyond the
-    // sheet's west edge at its scale, Normandy past the east edge, and Japan
-    // further past it again.
+    // Off the plate entirely, and the shape of this list is the argument. The
+    // sheet is fitted to the lower forty-eight, so everything the country did
+    // outside it has nowhere to be pointed at: the Panama Canal, the Pacific
+    // war, Berlin, Korea, the launch site at Baikonur, the Gulf, Moscow,
+    // Abbottabad. A card can say "Normandy"; the drawing cannot help.
+    //
+    // This is what M4's camera has to solve, and why the fix is not to shrink
+    // the story to fit the paper. Ordered by chapter, then by date.
     expect(
       Object.entries(where)
         .filter(([, place]) => place === null)
         .map(([id]) => id),
     ).toEqual([
+      'boom/panama-canal',
       'wwii/midway',
       'wwii/d-day',
       'wwii/iwo-jima',
       'wwii/hiroshima',
       'wwii/vj-day',
+      'superpower/berlin-airlift',
+      'superpower/korea',
+      'superpower/sputnik',
+      'superpower/tear-down-this-wall',
+      'millennium/wall-falls',
+      'millennium/desert-storm',
+      'millennium/soviet-union-ends',
+      'millennium/bin-laden',
     ]);
 
     // Pearl Harbor is the interesting one: it is not on the sheet and it is on
     // the drawing, because the Hawaii panel is where it belongs. A beat can be
-    // placed by an inset without the inset knowing anything about beats.
+    // placed by an inset without the inset knowing anything about beats. The
+    // other three inset placements are the annexation of 1898 and the two
+    // statehoods of 1959 — so the panels carry four beats between them, and
+    // every one of the four is about an island the lower-48 sheet has no room
+    // for.
     expect(where['wwii/pearl-harbor']).toBe('hawaii');
+    expect(where['industry/hawaii-annexed']).toBe('hawaii');
+    expect(where['superpower/hawaii-statehood']).toBe('hawaii');
+    expect(where['superpower/alaska-statehood']).toBe('alaska');
+
+    // And the beats that are on the sheet are on it in the ordinary way.
     expect(where['wwii/trinity']).toBe('sheet');
     expect(where['wwii/willow-run']).toBe('sheet');
     expect(where['wwii/executive-order-9066']).toBe('sheet');
+    expect(where['founding/jamestown']).toBe('sheet');
+    expect(where['millennium/capitol']).toBe('sheet');
+  });
+});
+
+describe('the geometry the pipeline draws by hand', () => {
+  /**
+   * Two things that only a top-level measurement can catch, and both of them
+   * fail *silently*. A route projected off the sheet is invisible, not wrong:
+   * no error, no warning, and a plate that looks deliberate. And a boundary
+   * feature that begins on its chapter's closing day can never reach the
+   * opacity its fade-in is aiming at, so it ships as weight in the bundle and
+   * nothing on screen — which is what Chapter 1 did until the prune was made
+   * half-open.
+   */
+  const OUT = fileURLToPath(new URL('../data/chapters', import.meta.url));
+  const source = hasRecord ? JSON.parse(readFileSync(SOURCE, 'utf8')) : null;
+
+  it.skipIf(!hasRecord)('projects every authored route onto the paper it is drawn on', () => {
+    const arcs = decodeArcs(source);
+    const projectors = createProjectors();
+
+    const pointsIn = (region) => {
+      const points = [];
+      for (const geometry of source.objects.states.geometries) {
+        if (regionOf(geometry.properties.ID) !== region) continue;
+        eachArcIndex(geometry, (i) => {
+          for (const point of arcs[i < 0 ? ~i : i]) {
+            const projected = projectors[region](point);
+            if (projected) points.push(projected);
+          }
+        });
+      }
+      return points;
+    };
+
+    const { normalize: toSheet, sheet } = fitSheet(pointsIn(MAINLAND));
+    const panelFits = {};
+    for (const region of PANEL_REGIONS) {
+      panelFits[region] = fitPanel(pointsIn(region), PANEL_RECTS[region]);
+    }
+
+    /** Is this point inside the paper it was drawn for? */
+    const onPaper = (region, [x, y]) => {
+      if (region !== MAINLAND) {
+        const [x0, y0, x1, y1] = PANEL_RECTS[region];
+        return x >= x0 && x <= x1 && y >= y0 && y <= y1;
+      }
+      return x >= 0 && x <= sheet.width && y >= 0 && y <= sheet.height;
+    };
+
+    let checked = 0;
+    for (const [chapterId, beats] of Object.entries(BEATS)) {
+      for (const beat of beats) {
+        for (const figure of beat.figures ?? []) {
+          const label = `${chapterId}/${figure.id}`;
+          // A one-point "route" is not a line: it expands to zero segments and
+          // draws nothing, which is the same silent failure again.
+          expect(figure.points.length, `${label} is not a line`).toBeGreaterThan(1);
+
+          const region = figure.region ?? MAINLAND;
+          const place = region === MAINLAND ? toSheet : panelFits[region].normalize;
+          const drawn = figure.points.map((point) => {
+            const metres = projectors[region](point);
+            expect(metres, `${label} does not project at ${point}`).toBeTruthy();
+            return place(metres);
+          });
+
+          const off = figure.points.filter((_, i) => !onPaper(region, drawn[i]));
+          // A point may project to a finite, plausible coordinate and still be
+          // nowhere near the paper — that is the hazard `regions.js` exists for,
+          // and for an authored route there is no bundle-level check to catch it.
+          expect(off, `${label} leaves the ${region} paper at ${JSON.stringify(off)}`).toEqual([]);
+          checked++;
+        }
+      }
+    }
+
+    // The measurement is worth nothing if the collection has quietly gone
+    // empty — a rename would do it.
+    expect(checked).toBeGreaterThan(8);
+  });
+
+  it.skipIf(!hasRecord)('ships no boundary feature a chapter could never show', () => {
+    // The prune is half-open on the chapter's end, which is what stops a feature
+    // dated on a chapter's closing day from being drawn in two chapters at once
+    // and from being drawn in neither. `pipeline/build.js` explains the case in
+    // full; this is the assertion that keeps it true.
+    for (const chapter of CHAPTERS.filter((c) => c.built)) {
+      const bundle = JSON.parse(readFileSync(path.join(OUT, `${chapter.id}.json`), 'utf8'));
+      for (const geometry of bundle.objects.states.geometries) {
+        if (geometry.properties.type === 'Story route') continue;
+        expect(
+          geometry.properties.start,
+          `${chapter.id}/${geometry.properties.id} begins on or after the chapter closes`,
+        ).toBeLessThan(chapter.endN);
+      }
+    }
+  });
+
+  it.skipIf(!hasRecord)('gives a chapter with nothing derived something to draw when it opens', () => {
+    // Chapter 1 is the one chapter whose plate carries no derived geometry:
+    // every feature that reaches its window starts on the day it closes. The
+    // only thing it can draw is the routes its beats carry — so if the earliest
+    // of those arrives late, the chapter opens on bare paper.
+    //
+    // That is what it did. The first version dated its earliest route 1763,
+    // which left a hundred and fifty-six of the chapter's hundred and seventy-six
+    // years blank, and *every other check in this file passed*, because a route
+    // that has not been revealed yet breaks no single test's reading. What found
+    // it was measuring the plate rather than reading the suite: with the
+    // interface hidden, the darkest pixel of the opening frame was 181 of 255,
+    // which is paper and nothing else. This is the guard that measurement earned.
+    //
+    // The allowance is a fraction of the window rather than a number of days, so
+    // it keeps its meaning if the chapter's bounds are ever moved.
+    const FIRST_FRAME = 0.02;
+
+    let carried = 0;
+    for (const chapter of CHAPTERS.filter((c) => c.built)) {
+      const geometries = JSON.parse(
+        readFileSync(path.join(OUT, `${chapter.id}.json`), 'utf8'),
+      ).objects.states.geometries;
+      if (geometries.some((g) => g.properties.type !== 'Story route')) continue;
+
+      carried++;
+      const earliestN = Math.min(...geometries.map((g) => g.properties.start));
+      const earliest = Date.parse(`${nToIso(earliestN)}T00:00:00Z`);
+      const opens = Date.parse(`${chapter.from}T00:00:00Z`);
+      const closes = Date.parse(`${chapter.to}T00:00:00Z`);
+      const deadline = opens + (closes - opens) * FIRST_FRAME;
+
+      // Compared as numbers, because that is all vitest's ordering matchers
+      // accept — and the dates are put in the message instead, so the failure
+      // reads as dates rather than as a pair of negative integers.
+      expect(
+        earliest,
+        `${chapter.id} draws nothing derived: no route until ${nToIso(earliestN)}, ` +
+          `and it opens on ${chapter.from}`,
+      ).toBeLessThanOrEqual(deadline);
+    }
+
+    // If a chapter ever stops being carried this way, say so here rather than
+    // passing vacuously over an empty loop.
+    expect(carried).toBeGreaterThan(0);
   });
 });
 

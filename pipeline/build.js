@@ -40,6 +40,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { CHAPTERS } from '../src/timeline/chapters.js';
+import { BEATS } from '../src/timeline/narration.js';
 import { decodeArcs } from '../src/lib/topojson.js';
 import { eachArcIndex, pruneTopology } from './lib/topology.js';
 import { PANEL_RECTS, createProjectors, fitPanel, fitSheet } from './lib/project.js';
@@ -124,6 +125,48 @@ function formatKb(bytes) {
 }
 
 /**
+ * The authored routes a chapter's beats carry, projected into the sheet.
+ *
+ * This is the only place the pipeline reads the story layer, and it reads one
+ * field of it. `figures` are polylines in real longitude and latitude, written
+ * by hand in `timeline/narration.js`; everything else in that file — the titles,
+ * the dates people read, the prose — is invisible here. So a chapter nobody has
+ * written still builds the same way a written one does, and the story layer
+ * cannot become a build dependency of the map.
+ *
+ * Why a route is allowed to be hand-drawn when a boundary is not: a boundary in
+ * this atlas is a claim about a surveyed edge, so it is derived or it is wrong.
+ * A route is a claim about a corridor, and the corridors below are traced from
+ * published descriptions of the roads and marches they depict. Each carries a
+ * `note` saying so, and Chapter 1 depends on them outright — its window contains
+ * no state boundary at all, so this is the only thing its plate can draw.
+ */
+function chapterFigures(chapter, { projectors, toSheet, panelFits }) {
+  const out = [];
+  for (const beat of BEATS[chapter.id] ?? []) {
+    for (const figure of beat.figures ?? []) {
+      const region = figure.region ?? MAINLAND;
+      const project = projectors[region];
+      if (!project) throw new Error(`figure ${figure.id} names an unknown region: ${region}`);
+      const place = region === MAINLAND ? toSheet : panelFits[region].normalize;
+
+      out.push({
+        figure,
+        startN: beat.n,
+        points: figure.points.map((point) => {
+          const metres = project(point);
+          if (!metres) {
+            throw new Error(`figure ${figure.id} (${chapter.id}) does not project at ${point}`);
+          }
+          return place(metres);
+        }),
+      });
+    }
+  }
+  return out;
+}
+
+/**
  * The frame around a panel: a closed rectangle, drawn as one arc.
  *
  * It is a `LineString`, not a `Polygon`, and that is what makes it work with no
@@ -202,13 +245,28 @@ async function main() {
   for (const chapter of CHAPTERS) {
     if (!chapter.built) continue;
 
+    // The last date this chapter can show: its own end, or the record's when the
+    // window runs past the data. See the `t` note below.
+    const windowEndN = Math.min(chapter.endN, recordEndN);
+
     // ---- prune to this chapter's window -------------------------------
     // Date only, now. The insets are no longer excluded: they are routed.
+    //
+    // Half-open on the chapter's end: `START_N < chapter.endN`, not `<=`. A
+    // chapter's window is `[from, to)`, which is what `pipeline.test.js` already
+    // asserts when it checks that no two chapters claim the same instant — and
+    // the inclusive version quietly disagreed with it. Two things were wrong
+    // with the inclusive one. A feature dated exactly on a chapter's closing day
+    // was drawn in that chapter *and* the next; and Chapter 1, whose window
+    // closes on 1783-09-03, swept up all fifteen features that begin on that
+    // very day — 457 arcs of boundary that appear at the fade-in rate and reach
+    // no opacity before the chapter ends, so a chapter with no visible boundary
+    // at all shipped a 42 KB bundle of geometry nobody could ever see.
     const pruned = pruneTopology(
       source,
       arcsAbsolute,
       (geometry) =>
-        geometry.properties.START_N <= chapter.endN && geometry.properties.END_N >= chapter.startN,
+        geometry.properties.START_N < chapter.endN && geometry.properties.END_N >= chapter.startN,
     );
 
     // Which region each surviving arc belongs to. Read off the geometries that
@@ -253,6 +311,23 @@ async function main() {
       frames.push({ arc: simplified.length - 1, region });
     }
 
+    // Story routes go in here too, and for the same reason the frames do: they
+    // are authored, they are already as simple as they were written, and
+    // Douglas-Peucker would happily straighten a march that took a bend
+    // somebody chose on purpose.
+    const routes = [];
+    let routePoints = 0;
+    for (const { figure, points, startN } of chapterFigures(chapter, {
+      projectors,
+      toSheet,
+      panelFits,
+    })) {
+      if (points.length < 2) continue;
+      simplified.push(points);
+      routePoints += points.length;
+      routes.push({ arc: simplified.length - 1, figure, startN });
+    }
+
     const { arcs, transform } = quantizeArcs(simplified, QUANT_RESOLUTION);
 
     // Boundary changes whose *start* falls inside the window: the annotation
@@ -279,7 +354,13 @@ async function main() {
         // chapter's own edge clips it, not history. Without this flag the date
         // mask would fade everything out on the chapter's last day and the map
         // would dissolve into blank paper.
-        t: g.properties.END_N >= chapter.endN ? 1 : 0,
+        //
+        // `windowEndN` rather than `chapter.endN` because Chapter 8's window
+        // runs past the record. "Still alive at the end" has to mean alive on
+        // the last date the *record* speaks to; measured against a window that
+        // outlives the data, no feature would ever be terminal and that whole
+        // plate would dissolve on its last frame.
+        t: g.properties.END_N >= windowEndN ? 1 : 0,
       },
     }));
 
@@ -300,6 +381,36 @@ async function main() {
           t: 1,
         },
       });
+    }
+
+    for (const { arc, figure, startN } of routes) {
+      geometries.push({
+        type: 'LineString',
+        arcs: [arc],
+        properties: {
+          id: figure.id,
+          abbr: '',
+          name: figure.note ?? 'Story route',
+          type: 'Story route',
+          area: 0,
+          // A route has no validity of its own. It is revealed when its beat's
+          // date passes and it is still on the sheet when the chapter closes,
+          // because the chapter's edge ends it and not history — the same shape
+          // a panel frame has, and for the same reason.
+          start: startN,
+          end: recordEndN,
+          t: 1,
+        },
+      });
+    }
+
+    // A chapter marked `built` that produces nothing to draw is a mistake and
+    // not a quiet empty chapter. The loader would fetch a bundle with no
+    // geometry at all, the sheet would come up blank, and from outside that is
+    // indistinguishable from a broken build — which is exactly the state this
+    // pipeline exists to make impossible.
+    if (!geometries.length) {
+      throw new Error(`chapter ${chapter.id} is marked built but has nothing to draw`);
     }
 
     const bundle = {
@@ -338,8 +449,9 @@ async function main() {
         stats: {
           geometries: geometries.length,
           arcs: arcs.length,
-          pointsBefore: before + framePoints,
-          pointsAfter: after + framePoints,
+          pointsBefore: before + framePoints + routePoints,
+          pointsAfter: after + framePoints + routePoints,
+          routes: routes.length,
         },
       },
     };
@@ -359,7 +471,8 @@ async function main() {
         `${String(arcs.length).padStart(4)} arcs  ` +
         `${String(before).padStart(7)} -> ${String(after).padStart(6)} pts (-${saved.toFixed(0)}%)  ` +
         `${formatKb(bytes).padStart(9)} + ${formatKb(notesBytes).padStart(8)} notes` +
-        `${frames.length ? `  panels ${frames.map((f) => f.region).join('+')}` : ''}`,
+        `${frames.length ? `  panels ${frames.map((f) => f.region).join('+')}` : ''}` +
+        `${routes.length ? `  routes ${routes.map((r) => r.figure.id).join('+')}` : ''}`,
     );
 
     manifest.push({

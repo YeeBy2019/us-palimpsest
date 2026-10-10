@@ -132,9 +132,13 @@ describe('beatAt', () => {
     expect(beatAt(beats, 2100)).toBe(beats[beats.length - 1]);
   });
 
-  it('has nothing to say about a chapter that has not been written', () => {
+  it('has nothing to say about a chapter it does not know', () => {
+    // Every chapter is written as of 2026-10-10, so the only way to reach the
+    // empty branch is an id that names no chapter. It still has to be exercised:
+    // `beatsFor` is called with whatever the UI hands it, and an unknown id must
+    // produce an empty story rather than a crash.
     expect(beatAt([], 1950)).toBeNull();
-    expect(beatsFor({ id: 'division' })).toEqual([]);
+    expect(beatsFor({ id: 'no-such-chapter' })).toEqual([]);
   });
 });
 
