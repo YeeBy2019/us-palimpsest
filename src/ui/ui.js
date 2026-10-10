@@ -15,6 +15,11 @@
  * be handed to someone else. `?chapter=division&date=1861-04-12&anchor=1861`
  * opens on the exact shot M0 is judged by, which makes the acceptance test
  * something that can be pasted into a message rather than described.
+ *
+ * And it owns the question of whether the atlas plays itself, which is a URL
+ * question more than a button question: {@link shouldAutoplay} reads the link
+ * and the viewer's motion setting, and says whether the film starts without
+ * being asked. `main.js` is what acts on the answer.
  */
 
 import { isoToYear, parseIso, yearToIso, yearToLabel } from '../lib/dates.js';
@@ -92,8 +97,12 @@ export class Interface {
     });
 
     this.dom.play.addEventListener('click', () => {
-      const playing = this.state.toggle();
-      this.#syncPlayButton(playing);
+      this.state.toggle();
+      // Called here rather than left to the next frame so the label answers the
+      // press itself: at the end of a chapter this is the click that starts a
+      // dispersal, and a button that says Play for a frame while a chapter is
+      // already moving reads as a missed click.
+      this.#syncPlayButton();
     });
 
     this.dom.rewind.addEventListener('click', () => {
@@ -106,7 +115,8 @@ export class Interface {
       if (event.target instanceof HTMLInputElement) return;
       if (event.code === 'Space') {
         event.preventDefault();
-        this.#syncPlayButton(this.state.toggle());
+        this.state.toggle();
+        this.#syncPlayButton();
       }
     });
 
@@ -234,6 +244,7 @@ export class Interface {
     const label = yearToLabel(year);
     if (this.dom.stamp.value !== label) this.dom.stamp.value = label;
     this.dom.scrub.value = String(Math.round(this.state.progress * SCRUB_STEPS));
+    this.#syncPlayButton();
     this.#syncStory(year);
     this.#maybeWriteUrl();
   }
@@ -256,7 +267,14 @@ export class Interface {
     );
   }
 
-  #syncPlayButton(playing = this.state.playing) {
+  #syncPlayButton() {
+    const playing = this.state.playing;
+    // Idempotent, because this is called every frame from `syncDate`. `playing`
+    // is not the button's to own: autoplay sets it, the end of the film clears
+    // it, and the keyboard toggles it, so the only way the label can be trusted
+    // is if it is derived from the state rather than written when someone
+    // happens to remember to write it.
+    if (this.dom.play.getAttribute('aria-pressed') === String(playing)) return;
     this.dom.play.setAttribute('aria-pressed', String(playing));
     this.dom.play.textContent = playing ? 'Pause' : 'Play';
   }
@@ -323,5 +341,42 @@ export function parseDeepLink() {
     /** `lo` forces the quick tier; anything else streams full detail. */
     tier: params.get('tier'),
     intro: params.has('intro'),
+    /** Open the view without starting the film. See `shouldAutoplay`. */
+    still: params.has('still'),
   };
+}
+
+/**
+ * Does the atlas start playing on its own?
+ *
+ * Yes by default. The eight chapters are one continuous run and a person who
+ * opens the page has asked to be shown it, so the atlas starts itself rather
+ * than waiting to be driven — which is also the only way the narrative layer
+ * gets read, since a visitor who never presses Play sees the opening date and
+ * one card.
+ *
+ * Three things override that default, and each is a promise the atlas has
+ * already made rather than a preference:
+ *
+ * - **A link that names a date is a link to a moment, not to the film.** The
+ *   deep link exists so that a shot can be pasted into a message and land on
+ *   that shot, which means the cursor has to stay where it landed. Playing it
+ *   would carry the reader off the frame they were sent to look at, and the one
+ *   thing the URL is for is holding a frame still.
+ * - **`?still`.** The escape hatch, and it is not redundant with the rule above:
+ *   a link that names a *chapter* and no date is a legitimate thing to share,
+ *   and without this there would be no way to share one without it starting to
+ *   move. See the deep link table in `docs/ARCHITECTURE.md`.
+ * - **`prefers-reduced-motion`.** Continuous motion is the most aggressive
+ *   thing this page does, and the setting belongs to the viewer rather than to
+ *   the link, so it wins even over a default. The rest of the atlas's motion is
+ *   still owed to that setting and is still M5's work; this is the one case
+ *   where getting it wrong means a page that moves on its own.
+ *
+ * Takes both inputs as arguments rather than reading the environment, so it can
+ * be pinned by a test — `parseDeepLink` above cannot be, because it has to read
+ * `location`.
+ */
+export function shouldAutoplay(link, reducedMotion) {
+  return !reducedMotion && !link.still && link.year === null;
 }

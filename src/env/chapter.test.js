@@ -198,3 +198,156 @@ describe('standing on a beat', () => {
     expect(state.dwell).toBe(0);
   });
 });
+
+/**
+ * Handing the film on.
+ *
+ * A chapter's end used to be a terminus: a play-through ran the chapter out and
+ * stopped, and the viewer started the next one by hand. With one written chapter
+ * that was right — there was nowhere to go. With eight it is a film that halts
+ * seven times, so the end of a chapter is a hand-off: the cursor rolls into the
+ * next one and `playing` survives the dispersal.
+ *
+ * `nextChapter` is a function the state machine is given, not a list it knows,
+ * and every test above this one leaves it unset. That is deliberate and it is
+ * the reason they still pass: unset means "a chapter is the whole of it", which
+ * is what the atlas did before there was a film.
+ */
+describe('handing the film on', () => {
+  /** A state playing `chapter`, told the order it is part of. */
+  const film = (chapter, order) => {
+    const state = new ChapterState(chapter);
+    state.holds = [];
+    state.holdSeconds = 0;
+    state.nextChapter = (current) => order[order.indexOf(current) + 1] ?? null;
+    state.openingChapter = order[0];
+    state.play();
+    return state;
+  };
+
+  it('rolls into the next chapter instead of stopping at the end', () => {
+    const state = film(wwii, [expansion, wwii, division]);
+    let ticks = 0;
+    while (!state.isTransitioning && ticks < 400) state.update(1, ticks++);
+
+    expect(state.partner).toBe(division);
+    // The whole point: a chapter change the viewer did not ask for is not a
+    // reason to stop watching, and `goTo` no longer pauses on its own.
+    expect(state.playing).toBe(true);
+  });
+
+  it('stops at the end of the last chapter', () => {
+    const state = film(division, [expansion, wwii, division]);
+    let ticks = 0;
+    while (state.playing && ticks < 400) state.update(1, ticks++);
+
+    expect(state.playing).toBe(false);
+    expect(state.partner).toBeNull();
+    expect(state.date).toBe(division.end);
+  });
+
+  it('asks where to go once per chapter, not once per frame', () => {
+    // Without the guard on `isTransitioning` this would be one call per frame
+    // for the length of the dispersal — each one re-aiming the transition that
+    // is already running, which is a chapter that never arrives.
+    let asked = 0;
+    const state = film(wwii, [expansion, wwii, division]);
+    state.nextChapter = () => {
+      asked++;
+      return division;
+    };
+
+    for (let i = 0; i < 200; i++) state.update(1, i);
+
+    expect(asked).toBe(1);
+    expect(state.partner).toBe(division);
+  });
+
+  it('does not end the chapter while a beat is still being held', () => {
+    // The last card. A chapter whose last beat is dated the day it closes is
+    // parked at its end the moment it lands on that beat, so a hand-off that
+    // ignored the dwell would cut the final beat off every chapter written to
+    // end on its subject — and Chapter 6 ends on 1945-08-15.
+    const state = film(wwii, [wwii, division]);
+    state.holds = [wwii.end];
+    state.holdSeconds = 4;
+
+    state.update(60, 0);
+
+    expect(state.date).toBe(wwii.end);
+    expect(state.dwell).toBeCloseTo(4, 6);
+    expect(state.isTransitioning).toBe(false);
+    expect(state.playing).toBe(true);
+  });
+
+  it('carries the film on when Play is pressed on a chapter that has run out', () => {
+    // A viewer who paused on the last frame and presses Play means "go on", not
+    // "sit there" — and not "start this chapter again", which is what Restart is
+    // for.
+    const state = film(wwii, [wwii, division]);
+    state.pause();
+    state.snapDate(wwii.end);
+    expect(state.playing).toBe(false);
+    expect(state.isTransitioning).toBe(false);
+
+    state.toggle();
+
+    expect(state.partner).toBe(division);
+    expect(state.playing).toBe(true);
+  });
+
+  it('starts the film again when Play is pressed on a finished one', () => {
+    const state = film(division, [expansion, division]);
+    state.pause();
+    state.snapDate(division.end);
+
+    state.toggle();
+
+    // The unit that stopped was the run, not the chapter, so the answer is the
+    // opening rather than a dead button.
+    expect(state.partner).toBe(expansion);
+    expect(state.playing).toBe(true);
+  });
+
+  it('does not re-aim a dispersal that is already running', () => {
+    let asked = 0;
+    const state = film(wwii, [wwii, division]);
+    state.nextChapter = () => {
+      asked++;
+      return division;
+    };
+
+    state.pause();
+    // Parked on the last frame *and* a chapter change already in flight, which
+    // is the only state in which this guard is the thing being tested: the
+    // cursor is at the end of a chapter, and the chapter it is going to is
+    // already on its way.
+    state.snapDate(wwii.end);
+    state.goTo(division);
+    expect(state.isTransitioning).toBe(true);
+
+    state.toggle();
+
+    // Asking again would kill the transition and build the same one over the top
+    // of it, so the dispersal would restart from zero every time — a chapter
+    // that never arrives.
+    expect(asked).toBe(0);
+    expect(state.playing).toBe(true);
+    expect(state.partner).toBe(division);
+  });
+
+  it('stops rather than rolling when nothing has said what follows', () => {
+    const state = new ChapterState(division);
+    state.snapDate(division.end);
+
+    state.toggle();
+
+    // Nowhere to go and no opening to return to. A `ChapterState` on its own
+    // ends its chapters, which is the behaviour every other test in this file
+    // is written against.
+    expect(state.playing).toBe(true);
+    state.update(1, 0);
+    expect(state.playing).toBe(false);
+    expect(state.partner).toBeNull();
+  });
+});

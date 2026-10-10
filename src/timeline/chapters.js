@@ -455,6 +455,24 @@ export function previousChapter(chapter) {
 }
 
 /**
+ * The next chapter the atlas can actually show, or null at the end of the film.
+ *
+ * Not `nextChapter`. That one answers the record's order, in which a chapter
+ * that has never been drawn still has a place; this one answers the order the
+ * atlas can *play*, which is why it walks {@link BUILT_CHAPTERS}. The two are
+ * the same answer for all eight chapters today, so the difference is invisible
+ * — which is exactly why it needs saying out loud. A film handed a chapter with
+ * no bundle would travel to a dispersal and come out over a blank plate, and
+ * `main.js`'s prefetch deliberately treats a missing sibling as survivable, so
+ * nothing downstream would complain.
+ */
+export function nextBuiltChapter(chapter) {
+  const at = BUILT_CHAPTERS.indexOf(chapter);
+  if (at < 0) return null;
+  return BUILT_CHAPTERS[at + 1] ?? null;
+}
+
+/**
  * How many chapters ago an anchor was drawn. 0 means the chapter that owns it.
  * This is the palimpsest window: an anchor is at full strength at 0, fades over
  * 1 and 2, and is gone at 3. Counted in chapters rather than years because

@@ -168,6 +168,37 @@ to be built:
   moment is something that can be pasted into a message.
 - **Play becomes documentary playback**, which is the point of the whole layer.
 
+### It plays itself
+
+Eight written chapters in order are a documentary, so the atlas does not wait to be driven: opening
+the page runs it, from Jamestown to the sixth of January, about twenty-four and a half minutes of it.
+A chapter's length is `TRAVEL_SECONDS + beats × HOLD_SECONDS`, so each one runs between 2:08 and 3:32
+depending on how much there is to say.
+
+That makes the end of a chapter a **hand-off** rather than a terminus, which is the one thing the
+feature actually cost. The frame loop used to stop a play-through when the cursor reached the chapter's
+end; it now rolls into the next chapter through the dispersal, `playing` surviving the change, and only
+the end of the last chapter stops it. Pressing Play on a finished film starts it again from the top,
+because the thing that stopped was the whole run rather than one chapter.
+
+Navigating no longer pauses, either. A chapter click during a film means *go to this chapter*, the way
+a seek does in a player — pausing there let a viewer browse the selector, switch the film off without
+noticing, and come back to a still page wondering what broke. Scrubbing still pauses, because taking
+hold of the timeline is leaving the story, and Restart still pauses, because it is a rewind.
+
+Three things hold still instead, and each is a promise the atlas has already made rather than a
+preference:
+
+- **A link that names a date.** `?chapter=wwii&date=1944-06-06` is a shot to be looked at, so it stays
+  where it lands. The URL is rewritten as the cursor moves, so this also decides what a reload does
+  mid-film: it lands on that frame, paused. The URL records *where the cursor is*, not whether it was
+  moving.
+- **`?still`.** A link can name a chapter without starting a screening — sharing "look at Chapter 6"
+  should not mean "and then watch it leave".
+- **`prefers-reduced-motion`.** Continuous motion is the most aggressive thing the page does, and the
+  setting belongs to the viewer rather than to whoever sent the link, so it wins. The rest of the
+  atlas's motion is still owed to that setting; see M5.
+
 ### What it did cost, and why a pace was not enough
 
 Playing *is* the date cursor moving, so a chapter with something to read has to stop moving. The
@@ -552,8 +583,10 @@ states. Audio stubbed.
 All eight chapters are built and navigate — including Chapter 1, which carries no boundary geometry at
 all and is drawn entirely from its own story routes. The inset panels are in: both appear inside
 Chapter 4, at 1867 and 1898, and each is static from the day it appears. They are the last new shapes
-the record draws. What is left on this milestone is the sound, which is M3. See *Projection and the
-insets* for what the panels do and do not buy, and *Build status* for the chapters.
+the record draws. Chapters now hand off to one another, so the eight play as one run rather than as
+eight things a person has to start; see *It plays itself*. What is left on this milestone is the
+sound, which is M3. See *Projection and the insets* for what the panels do and do not buy, and *Build
+status* for the chapters.
 
 ### M2 — Anchors and annotation
 
@@ -583,8 +616,9 @@ independent content project. Track it separately and do not let it block M1–M3
 
 ### M5 — Ship
 
-Quality tiers with persistence, keyboard chapter navigation, `prefers-reduced-motion`, mobile
-fallback, deployment.
+Quality tiers with persistence, keyboard chapter navigation, `prefers-reduced-motion` across the
+dispersals and the camera, mobile fallback, deployment. Autoplay already honours the motion setting —
+it is the one piece of motion that would otherwise start without anyone asking; see *It plays itself*.
 
 ### Non-goals for now
 

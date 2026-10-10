@@ -204,10 +204,19 @@ The URL is the state. Ours:
 | `date` | a date inside the chapter, ISO | `date=1861-04-12` |
 | `anchor` | which retained boundary states are shown | `anchor=1783,1861` |
 | `tier` | `lo` forces the quick tier, `hi` streams full detail | `tier=lo` |
-| `intro` | play the opening anyway, when a scene is set | `intro` |
+| `still` | open the view without starting the film | `still` |
+| `intro` | show the opening chapter card even with the film held still | `intro` |
 
 So `?chapter=division&date=1861-04-12&anchor=1783,1861` opens directly on the M0 shot. That is the
 acceptance test for M0 made linkable, which means it can also be put in a review comment.
+
+`still` is a bare flag rather than a value, the same shape `intro` has, because it is a mode and not a
+setting. Neither of them survives a reload — `#maybeWriteUrl` rewrites the whole query string to
+`chapter` and `date` within a quarter second of the first frame, which is deliberate: those two are
+the state, and everything else is an instruction about how to *arrive*. It has a consequence worth
+knowing, because it is the thing that decides what a refresh does mid-film: a reload lands on the frame
+the cursor was on, paused, since a link that names a date never autoplays. The URL records where the
+cursor is, not whether it was moving.
 
 ## Module layout
 
@@ -606,6 +615,53 @@ The state machine is told a pace, a list of dates and a duration. It never learn
 them. `applyStoryTiming` in `main.js` is the whole of the coupling, and `env/chapter.js` stays free
 of any knowledge of history or of content.
 
+### The eight chapters are one run, and it starts itself
+
+With every chapter written, a play-through of one chapter stopped being the interesting unit: eight
+chapters of beats in order are a documentary, and a documentary that has to be started eight times is
+not one. So the atlas plays itself on opening, and the end of a chapter is a **hand-off**.
+
+Two lines of assignment in `main.js` are the whole of it, and they follow the rule `holds` already
+set — the state machine is given the answer without the content:
+
+```js
+state.nextChapter = nextBuiltChapter;      // from timeline/chapters.js
+state.openingChapter = BUILT_CHAPTERS[0];
+```
+
+- `nextBuiltChapter` rather than `nextChapter`. The latter walks all of `CHAPTERS` — the record's
+  order, in which a chapter that has never been drawn still has a place. The film has to walk
+  `BUILT_CHAPTERS`, or it would travel through a dispersal and come out over a blank plate; and
+  nothing downstream would complain, because `main.js`'s prefetch deliberately treats a missing
+  sibling as survivable. Both functions give the same answer for all eight chapters today, which is
+  exactly why the distinction is written down.
+- `#rollOn` is called from two places and they are the same question: the frame loop reaching the
+  end of a chapter, and a viewer pressing Play on one that has already run out. The first keeps
+  playing; the second has just started, so it starts. Play on a chapter with nothing after it at all
+  restarts from `openingChapter`, because the unit that stopped was the run.
+- **`goTo` no longer touches `playing`.** It used to pause, on the grounds that a chapter change is
+  something the viewer asked for — true when a chapter change could only be asked for. With the film
+  running, a chapter click means "go to this one", and pausing there let a viewer browse the selector,
+  switch the film off without noticing, and return to a still page wondering what broke. Scrubbing
+  still pauses (taking the timeline is leaving the story) and so does Restart (it is a rewind).
+- **The end of a chapter must not be mistaken for the end of a beat.** `#atEnd` requires
+  `dwell === 0`, or a chapter whose last beat is dated the day it closes would hand off before its
+  final card was read — which is Chapter 6, and Chapters 1 and 3 as well. It also requires
+  `!isTransitioning`, so that pressing Play mid-dispersal cannot re-aim the transition in flight.
+
+The decision about whether to autoplay at all is `shouldAutoplay` in `ui/ui.js`, next to
+`parseDeepLink`, because it is mostly a URL question. It takes its two inputs as arguments rather than
+reading `location` and `matchMedia`, so it can be pinned by a test — which is the same reason its
+neighbour cannot be. It says no for three reasons, two of them documented in the deep link table
+above and the third being `prefers-reduced-motion`.
+
+**One trap, and it cost a run.** Headless Chrome reports `prefers-reduced-motion: reduce` by default,
+so a headless check *inherits* a page that correctly refuses to start. The first autoplay check read
+that as the feature being broken; motion has to be emulated back on with
+`Emulation.setEmulatedMedia` before the film is visible at all. The same trap points the other way
+for every other headless check in this project: motion that is not emulated is motion that is not
+being tested — which is why the audit walk has always seen a still plate and always will.
+
 ### The `@layer boot` hidden list is a trap
 
 `index.html` carries an `@layer boot` block that hides the chrome, the card, the story panel, the
@@ -752,6 +808,44 @@ Settled on 2026-10-10:
   exactly on a chapter's closing day was drawn in that chapter *and* the next, and Chapter 1 swept up
   all fifteen features that begin on 1783-09-03, shipping 457 arcs of 42 KB of boundary that faded in
   and never reached opacity before the chapter ended.
+
+Settled on 2026-10-10, on the request that the atlas play itself:
+
+- **The atlas autoplays, and the eight chapters are one continuous run.** A page that has to be
+  started is a page most visitors see as a still picture of 1607 with one card on it, and the
+  narrative layer only pays for itself if it is read. The cost is that a chapter's end stops being a
+  terminus: the frame loop hands the cursor to the next chapter through the dispersal and `playing`
+  survives the change. About twenty-four and a half minutes end to end.
+- **Navigating no longer pauses.** `goTo` used to set `playing = false`, which was right when a
+  chapter change could only be asked for by someone who wanted to stop the film. It is now a reversal,
+  and the reason is a failure mode rather than a preference: the common case is a film in progress, so
+  pausing on a chapter click let a viewer browse the selector, switch the film off without noticing,
+  and come back to a still page wondering what broke. Scrubbing still pauses, because taking hold of
+  the timeline is leaving the story; Restart still pauses, because it is a rewind.
+- **Three things suppress autoplay, and each is an existing promise rather than a preference.** A
+  link that names a date (the deep link is a shot to look at, and the URL is rewritten as the cursor
+  moves, so this is also what a reload mid-film does); `?still`, so a chapter can be shared without
+  starting a screening; and `prefers-reduced-motion`, which belongs to the viewer rather than to the
+  sender of the link. The predicate is `shouldAutoplay` in `ui/ui.js`, pure so that it can be tested —
+  `parseDeepLink` beside it cannot be, and this is the larger blast radius of the two.
+- **The film walks the built chapters, so `chapters.js` gained `nextBuiltChapter`.** The existing
+  `nextChapter` walks all of `CHAPTERS`, which is the record's order and the right answer for
+  anything that is about the record — but handing the film a chapter with no bundle sends it through a
+  dispersal and out over a blank plate, and `main.js` deliberately treats a missing sibling as
+  survivable, so nothing would report it. The two answer the same thing today, which is why the
+  distinction had to be written down rather than inferred.
+- **The state machine still learns no content, and the film did not change that.** It is given
+  `nextChapter` as a function of the chapter, exactly as it is given `holds` as a list of dates: it
+  asks *where next* without being able to name where. Assigning both is two lines in `main.js`.
+  `nextChapter` and `previousChapter` in `chapters.js` remain unused by anything.
+- **A chapter's end is not a beat's end.** `#atEnd` requires `dwell === 0` as well as the cursor
+  sitting on the chapter's end, because a chapter whose last beat is dated the day it closes is parked
+  there while it is still being read — Chapter 6 ends on 1945-08-15, and Chapters 1 and 3 close on
+  their own last beats too. Without that half of the condition the film would cut the final card off
+  every chapter written to end on its subject.
+- **Play on a finished film starts it again.** It is not a chapter restart — that is what Restart is
+  for — and it is not a dead button, which was the one outcome worth code to avoid: the unit that
+  stopped was the run, so Play returns to `openingChapter`.
 
 M0 is built end to end for **Chapter 2 Expansion (1783–1848)** and **Chapter 3 Division (1848–1865)** —
 the vertical slice's success criterion is a fifteen-second capture of Chapter 3 — and **all eight**

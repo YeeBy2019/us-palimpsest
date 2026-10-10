@@ -5,6 +5,11 @@
  * opening chapter's geometry, the paper and the outlines are needed for the
  * first frame; everything else — the remaining chapters, the annotation layer,
  * a sound bed — streams in behind a picture that is already worth looking at.
+ *
+ * It is also the only module that knows the chapters *in order*, which is why
+ * the film's running order is wired here and not inside the state machine: the
+ * atlas plays itself from 1607 to the present, and "what comes after this
+ * chapter" is a fact about content rather than about time.
  */
 
 import * as THREE from 'three';
@@ -14,9 +19,9 @@ import { Stage } from './core/pipeline.js';
 import { U } from './core/shared.js';
 import { ChapterState } from './env/chapter.js';
 import { buildDots } from './fx/dots.js';
-import { BUILT_CHAPTERS } from './timeline/chapters.js';
+import { BUILT_CHAPTERS, nextBuiltChapter } from './timeline/chapters.js';
 import { HOLD_SECONDS, beatsFor, holdsFor, paceFor } from './timeline/narration.js';
-import { Interface, parseDeepLink } from './ui/ui.js';
+import { Interface, parseDeepLink, shouldAutoplay } from './ui/ui.js';
 import { createAnchorMaterial, visibleAnchors } from './world/anchors.js';
 import { buildBoundaries } from './world/boundaries.js';
 import { applyParallax, createCamera, frameSheet, worldPerCssPixel } from './world/camera.js';
@@ -99,13 +104,13 @@ async function boot() {
 
   // ---- state -------------------------------------------------------------
 
-  // How a written chapter plays is the one thing the story layer asks of the
-  // state machine, and it is set here rather than inside `ChapterState` so that
-  // the state machine stays innocent of content: it is told a pace, a list of
-  // dates, and how long to stand at them, and it never learns what is at any of
-  // those dates. Set on both paths — the opening chapter and every arrival —
-  // because timing that is only right at boot is timing that is wrong the first
-  // time anyone navigates.
+  // How a written chapter *plays* is what the story layer asks of the state
+  // machine, and it is set here rather than inside `ChapterState` so that the
+  // state machine stays innocent of content: it is told a pace, a list of dates,
+  // and how long to stand at them, and it never learns what is at any of those
+  // dates. Set on both paths — the opening chapter and every arrival — because
+  // timing that is only right at boot is timing that is wrong the first time
+  // anyone navigates.
   function applyStoryTiming(chapter) {
     const beats = beatsFor(chapter);
     state.pace = paceFor(beats);
@@ -116,6 +121,34 @@ async function boot() {
   const state = new ChapterState(opening);
   if (link.year !== null) state.snap(opening, link.year);
   applyStoryTiming(opening);
+
+  // ---- the film ----------------------------------------------------------
+  //
+  // Eight chapters, in order, are one continuous run, so the end of a chapter
+  // is where the next one is handed to rather than where the atlas stops.
+  // Assigned from here rather than built into `ChapterState` because chapter
+  // order is content and the state machine is not told content: it is told
+  // *where to go next*, the same way it is told which dates to stand on without
+  // ever learning what is at them.
+  //
+  // Both assignments are the whole of the coupling, and both are one line over
+  // `BUILT_CHAPTERS` — the same list the rest of the atlas walks, so there is no
+  // second order that could disagree with the chapter selector.
+  state.nextChapter = nextBuiltChapter;
+  state.openingChapter = BUILT_CHAPTERS[0] ?? null;
+
+  /**
+   * Whether the page starts the film by itself.
+   *
+   * Read once, at boot, rather than watched: a viewer who turns reduced motion
+   * on mid-film is asking the operating system for something, not asking this
+   * page, and yanking the cursor out from under them would be a stranger
+   * response than finishing the chapter.
+   */
+  const autoplay = shouldAutoplay(
+    link,
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
 
   ui.state = state;
   ui.mount();
@@ -153,7 +186,12 @@ async function boot() {
   ui.setLoaderText('Pressing the sheet');
   await ui.hideLoader();
 
-  if (link.intro) ui.announce(opening);
+  // The title card, and then the film — and the card is not delayed for, because
+  // a title card over a shot that has already started is what a title card is.
+  // `?intro` asks for the card on its own, which is what makes it possible to set
+  // a scene without starting a screening.
+  if (link.intro || autoplay) ui.announce(opening);
+  if (autoplay) state.play();
 
   let last = performance.now();
   let elapsed = 0;

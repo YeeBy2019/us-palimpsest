@@ -122,6 +122,33 @@ export class ChapterState {
      */
     this.heldAt = null;
 
+    /**
+     * The chapter to roll into when this one ends, or null to stop there.
+     *
+     * A **function of the chapter**, not a list, and it is the same bargain
+     * `holds` makes: the state machine is told where to go without ever being
+     * told what is there. `main.js` hands it `nextBuiltChapter`, so this module
+     * still holds no chapter order of its own — only the one chapter it is
+     * currently inside.
+     *
+     * Null is the default, and that default is load-bearing: it means "a chapter
+     * is the whole of it", which is exactly what the atlas did before there was
+     * a film. A `ChapterState` built in a test with nothing assigned still stops
+     * at its end, which is why the tests written before this existed still pass
+     * unchanged.
+     */
+    this.nextChapter = null;
+
+    /**
+     * Where Play starts when it is pressed on a film that has already finished.
+     *
+     * The unit that stopped was the whole run of chapters, not one chapter, so
+     * pressing Play at the end of it starts again from the top rather than doing
+     * nothing — a dead Play button is the one outcome worth six lines to avoid.
+     * Unset, Play on a chapter that has run out is inert.
+     */
+    this.openingChapter = null;
+
     this.#aim = null;
     this.#timeline = null;
     this._listeners = new Set();
@@ -209,7 +236,16 @@ export class ChapterState {
     if (chapter === this.chapter) return;
 
     this.#kill();
-    this.playing = false;
+    // Navigating does **not** touch `playing`. It used to pause here, on the
+    // grounds that a chapter change is something the viewer asked for — which
+    // was true when the only way to change chapter was to ask for one. With the
+    // atlas playing itself, the common case is a film in progress, and a chapter
+    // click then means "go to this one" rather than "stop". Pausing here would
+    // let a viewer browse the selector, silently switch the film off without
+    // noticing, and come back to a still page wondering what broke — which is a
+    // worse failure than a chapter change that keeps rolling. Scrubbing still
+    // pauses, because taking hold of the timeline *is* leaving the story, and
+    // Restart still pauses, because it is a rewind.
 
     // Slot 0 is the chapter being left, slot 1 the one arriving. The shader
     // blends between the two by weight, so the paper's tint, the hatch and the
@@ -277,9 +313,78 @@ export class ChapterState {
     this.playing = false;
   }
 
+  /**
+   * Start, stop, or roll on.
+   *
+   * Pressing Play on a chapter that has already run out is not a dead button.
+   * There are two ways to have run out and they take different roads: if another
+   * chapter follows, the film carries on into it; if none does, the film has
+   * finished and Play starts it again from the opening.
+   *
+   * Written as branches rather than as one conjunction, because the conjunction
+   * that says the same thing — `#atEnd() && !#rollOn() && openingChapter`, with
+   * the film left running by the fall-through — is true and unreadable, and it
+   * makes `#rollOn`'s own "the film is now playing" a line that nothing needs.
+   */
   toggle() {
-    this.playing = !this.playing;
-    return this.playing;
+    if (this.playing) {
+      this.playing = false;
+      return false;
+    }
+
+    if (this.#atEnd()) {
+      if (this.#rollOn()) return true;
+      if (this.openingChapter) {
+        this.goTo(this.openingChapter);
+        this.playing = true;
+        return true;
+      }
+    }
+
+    this.playing = true;
+    return true;
+  }
+
+  /**
+   * Carry the film into the chapter after this one. False when there is none.
+   *
+   * `goTo` deliberately leaves `playing` alone, so "rolled on" and "still
+   * playing" are two statements here rather than one — which matters because
+   * this is reached both from a play-through that is already running and from
+   * Play itself, where the film was stopped a moment ago. Injection says the
+   * line is load-bearing: remove it and Play on a chapter that has run out
+   * arrives at the next one without the film running.
+   *
+   * Note what is *not* here: nothing about timing. The arriving chapter's date
+   * and holds are installed under cover of the dispersal, which `goTo` already
+   * does, and its pace and holds are applied by whoever listens for the chapter
+   * change — the same path a chapter click takes. That is why a chapter that
+   * plays one way when it is chosen plays the same way when it arrives on its
+   * own, and why this is one call and not a second copy of the boot sequence.
+   */
+  #rollOn() {
+    const next = this.nextChapter ? this.nextChapter(this.chapter) : null;
+    if (!next) return false;
+    this.goTo(next);
+    this.playing = true;
+    return true;
+  }
+
+  /**
+   * Is the cursor parked at the end of its chapter with nothing holding it?
+   *
+   * "Nothing holding it" is the load-bearing half. A chapter whose last beat is
+   * dated the day it closes is *at* its end while it is standing on that beat,
+   * so a test that ignored the dwell would end the film before its last card was
+   * read — and the film would be one beat short on exactly the chapters that
+   * were written to end on their subject.
+   *
+   * The transition half matters for `toggle` rather than for `update`, which is
+   * only ever reached when nothing is in flight: a viewer pressing Play during a
+   * dispersal must not re-aim it.
+   */
+  #atEnd() {
+    return !this.isTransitioning && this.dwell === 0 && this.date >= this.chapter.end;
   }
 
   #kill() {
@@ -370,7 +475,14 @@ export class ChapterState {
       // The chapter is over when the date is at its end and nothing is holding
       // it there. A chapter whose last beat is dated the day it closes gets its
       // hold and then stops, which is why the dwell is part of this condition.
-      if (this.dwell === 0 && this.date >= this.chapter.end) this.playing = false;
+      //
+      // Over is not the same as finished. The eight chapters are one continuous
+      // thing, so the end of one is a hand-off rather than a stop: the cursor
+      // rolls into the next chapter and `playing` stays true across the
+      // dispersal, which is the whole of the difference between watching the
+      // atlas and operating it. Only the end of the last chapter stops it, and
+      // that is `#rollOn` returning false rather than a decision made here.
+      if (this.#atEnd() && !this.#rollOn()) this.playing = false;
     }
 
     // One write per frame, from one place. Everything above computes numbers;
