@@ -16,6 +16,7 @@ import {
   BEATS,
   DEFAULT_PACE,
   HOLD_SECONDS,
+  OPENING_HOLD_SECONDS,
   TRAVEL_SECONDS,
   beatAt,
   beatsFor,
@@ -187,5 +188,43 @@ describe('holdsFor', () => {
 
   it('has nothing to stand on in a chapter that has not been written', () => {
     expect(holdsFor([])).toEqual([]);
+  });
+});
+
+describe('the arrival hold', () => {
+  it('is shorter than a reading hold and longer than nothing', () => {
+    // A chapter's opening beat is the one beat the chapter card announces, so it
+    // is held for the length of that card rather than for the time it takes to
+    // read. Both bounds are statements: equal to `HOLD_SECONDS` would be the old
+    // behaviour with a new name, and zero would walk past the chapter's own
+    // opening before anyone could read it.
+    expect(OPENING_HOLD_SECONDS).toBeGreaterThan(0);
+    expect(OPENING_HOLD_SECONDS).toBeLessThan(HOLD_SECONDS);
+  });
+
+  it('lasts at least as long as the card that announces it', async () => {
+    // Imported here rather than at the head of the file for the reason given
+    // under `paceFor` above: `env/chapter.js` drags in the uniforms and three.js,
+    // and a content module that only needs the number has no business doing that.
+    //
+    // The requirement is real rather than tidy. The card inks over the sheet for
+    // `disperse + reform` and then holds for another 0.4 s; an arrival hold
+    // shorter than that would walk the cursor off the chapter's opening beat
+    // while the card announcing it was still on screen.
+    const { TRANSITION } = await import('../env/chapter.js');
+    const onScreen = TRANSITION.disperse + TRANSITION.reform + 0.4;
+    expect(OPENING_HOLD_SECONDS).toBeGreaterThanOrEqual(onScreen);
+  });
+
+  it('has a chapter that actually opens on one of its beats', () => {
+    // The hold's shortest day. It was written for Chapter 1, whose first beat is
+    // dated the day the chapter opens — so the film used to begin on twelve
+    // seconds of a near-empty plate that could not change, and it was reported as
+    // the film having stopped. If no chapter opened on a beat, this constant
+    // would be set on every chapter and consulted on none.
+    const opensOnABeat = CHAPTERS.filter((chapter) =>
+      BEATS[chapter.id]?.some((beat) => Math.abs(beat.year - chapter.start) < 1e-6),
+    );
+    expect(opensOnABeat.map((chapter) => chapter.id)).toContain('founding');
   });
 });

@@ -111,8 +111,43 @@ export class ChapterState {
     this.holds = [];
     /** How long to stand at each hold, in seconds. */
     this.holdSeconds = 0;
+    /**
+     * How long to stand on the chapter's **opening** hold — the one dated the
+     * day the chapter opens — in seconds.
+     *
+     * Separate from `holdSeconds` because the opening beat is the only one that
+     * is announced rather than discovered: it arrives with the chapter, and the
+     * chapter card is inking over the sheet to say so. Standing on it for the
+     * full reading time therefore spends twelve seconds repeating an
+     * introduction on a plate that has nothing on it yet — which is what the
+     * atlas's first chapter used to open with, and what it was reported as. See
+     * `OPENING_HOLD_SECONDS` in `timeline/narration.js`.
+     *
+     * The test for "the opening hold" is the same one `beginsInsideChapter` in
+     * `world/boundaries.js` makes, and for the same reason: a line dated the day
+     * the chapter opens does not fade in, it is already drawn; a beat dated that
+     * day does not get a stop on the way, it *is* the arrival.
+     *
+     * `null` means "the same as `holdSeconds`", which is what this module did
+     * before the field existed: a state machine told only a pace, a list of
+     * dates and a duration plays exactly as it always has, and the tests written
+     * against that still hold. `main.js` is what replaces the fallback with a
+     * real number, because how long a chapter's arrival is announced for is
+     * content and this module is not told content.
+     */
+    this.openingHoldSeconds = null;
     /** Seconds still to stand at the current hold; 0 while travelling. */
     this.dwell = 0;
+    /**
+     * How long the hold in progress was set to run, in seconds.
+     *
+     * Kept because `dwell` alone cannot be read as a fraction: the opening hold
+     * is a different length from the rest, so `dwell / holdSeconds` would start
+     * a three-second hold already a quarter spent. The dock draws that fraction,
+     * and a countdown that starts at a quarter is the kind of wrong that looks
+     * like a rendering bug. See `dwellLeft`.
+     */
+    this.dwellTotal = 0;
     /**
      * The hold last stood on, so arriving at it again does not re-trigger.
      *
@@ -174,6 +209,24 @@ export class ChapterState {
   get progress() {
     const span = this.chapter.end - this.chapter.start;
     return span > 0 ? clamp((this.date - this.chapter.start) / span, 0, 1) : 0;
+  }
+
+  /**
+   * How much of the hold in progress is still to run, 1 → 0; 0 while travelling.
+   *
+   * Exists for the dock, which has to *draw* the waiting. A hold is a deliberate
+   * act and the picture cannot show it: for the whole length of one the sheet,
+   * the stamp and the timeline are legitimately still, which is the same frame a
+   * page that died is in. Nine tenths of the film's running time is spent
+   * standing exactly here, so leaving this undrawn is what let a working film be
+   * read as a broken one — twice, by the person who asked for it.
+   *
+   * Measured against the length of *this* hold rather than against
+   * `holdSeconds`, because the chapter's opening beat is held for less. See
+   * `dwellTotal`.
+   */
+  get dwellLeft() {
+    return this.dwell > 0 && this.dwellTotal > 0 ? clamp(this.dwell / this.dwellTotal, 0, 1) : 0;
   }
 
   /**
@@ -465,7 +518,15 @@ export class ChapterState {
           // the same argument as the deep link having to round-trip to the day.
           this.date = hold;
           this.heldAt = hold;
-          this.dwell = this.holdSeconds;
+          // The beat the chapter opens on is the one beat the chapter card has
+          // already introduced, so it is held for the length of that card rather
+          // than the reading time. See `openingHoldSeconds`; to the day, not to
+          // a tolerance, because that is the same test `beginsInsideChapter`
+          // makes in `world/boundaries.js` and the two must agree about whether
+          // a date is "the chapter's opening".
+          const opening = hold <= this.chapter.start + 1e-6;
+          this.dwellTotal = (opening ? this.openingHoldSeconds : null) ?? this.holdSeconds;
+          this.dwell = this.dwellTotal;
         } else {
           this.date = clamp(target, this.chapter.start, this.chapter.end);
         }

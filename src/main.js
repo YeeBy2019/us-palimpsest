@@ -20,7 +20,7 @@ import { U } from './core/shared.js';
 import { ChapterState } from './env/chapter.js';
 import { buildDots } from './fx/dots.js';
 import { BUILT_CHAPTERS, nextBuiltChapter } from './timeline/chapters.js';
-import { HOLD_SECONDS, beatsFor, holdsFor, paceFor } from './timeline/narration.js';
+import { HOLD_SECONDS, OPENING_HOLD_SECONDS, beatsFor, holdsFor, paceFor } from './timeline/narration.js';
 import { Interface, parseDeepLink, shouldAutoplay } from './ui/ui.js';
 import { createAnchorMaterial, visibleAnchors } from './world/anchors.js';
 import { buildBoundaries } from './world/boundaries.js';
@@ -111,11 +111,20 @@ async function boot() {
   // dates. Set on both paths — the opening chapter and every arrival — because
   // timing that is only right at boot is timing that is wrong the first time
   // anyone navigates.
+  //
+  // Two durations rather than one, for the same reason `holds` is a list rather
+  // than a count: the chapter's opening beat is being announced by the chapter
+  // card while the cursor lands on it, so it is held for the length of that card
+  // and the reading time is kept for the beats that are actually news. Without
+  // that, Chapter 1 opened on twelve seconds of a near-empty plate that could
+  // not change — the atlas's first impression, and a false one. See
+  // `OPENING_HOLD_SECONDS`.
   function applyStoryTiming(chapter) {
     const beats = beatsFor(chapter);
     state.pace = paceFor(beats);
     state.holds = holdsFor(beats);
     state.holdSeconds = HOLD_SECONDS;
+    state.openingHoldSeconds = OPENING_HOLD_SECONDS;
   }
 
   const state = new ChapterState(opening);

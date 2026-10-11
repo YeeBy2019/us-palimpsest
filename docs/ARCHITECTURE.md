@@ -609,7 +609,20 @@ when the history happened.
 So `ChapterState` holds a list of dates and stands on each one for a duration:
 
 - `holds` — ascending fractional years, filled from `holdsFor(beats)`; `holdSeconds` — how long to
-  stand; `dwell` — seconds left at the current hold; `heldAt` — the hold last stood on.
+  stand; `dwell` — seconds left at the current hold; `dwellTotal` — how long *this* hold was set to
+  run; `heldAt` — the hold last stood on.
+- **A chapter's opening beat is held for less than a reading time.** `openingHoldSeconds` is filled
+  from `OPENING_HOLD_SECONDS` in `timeline/narration.js`, and it defaults to `null`, which reads as
+  "the same as `holdSeconds`" — `0` is a legitimate value, so it is `??` and never `||`. That beat is
+  the one beat that is not *discovered*: it arrives with the chapter card, which is inking itself over
+  the sheet to announce it, so it is held for the length of that card instead. Chapter 1 is the case
+  that forced it — it opens on its own first beat over a plate with almost nothing on it, and twelve
+  seconds of that is the first thing anyone ever sees of this atlas. Whether a hold is the opening is
+  decided by the same day comparison, to the same tolerance, that `beginsInsideChapter` makes in
+  `world/boundaries.js`; two places deciding what "the chapter's opening" means have to agree.
+- `dwellLeft` is `dwell / dwellTotal` — **never** `dwell / holdSeconds`. The two durations are
+  different lengths, so a three-second arrival divided by twelve would begin already a quarter spent,
+  and that fraction is exactly what the dock draws. `dwellTotal` exists for that one division.
 - The comparison in `#nextHold` is **inclusive of `from` and exclusive of `heldAt`**, and both bounds
   are load-bearing. Inclusive, because Chapter 6's first beat is dated the day the chapter opens, so
   on the first tick `from` and the hold are the same number — a strict comparison silently skips the
@@ -624,9 +637,11 @@ So `ChapterState` holds a list of dates and stands on each one for a duration:
 - A scrub (`aimDate`, `snapDate`) abandons a hold, and a chapter change clears `heldAt`, because
   chapters share dates: each one opens where the last one closed.
 
-The state machine is told a pace, a list of dates and a duration. It never learns what is at any of
-them. `applyStoryTiming` in `main.js` is the whole of the coupling, and `env/chapter.js` stays free
-of any knowledge of history or of content.
+The state machine is told a pace, a list of dates and **two** durations — the reading time and the
+arrival. It never learns what is at any of them. `applyStoryTiming` in `main.js` is the whole of the
+coupling, and `env/chapter.js` stays free of any knowledge of history or of content. Two durations
+rather than one, for the same reason `holds` is a list rather than a count: the shape of the answer is
+content, and content belongs on this side of the seam.
 
 ### The eight chapters are one run, and it starts itself
 
@@ -684,6 +699,27 @@ is not going to start — and a third that walks every input and requires exactl
 also pins `permalinkFor`, the URL policy, for the same reason — the policy was inside a DOM method and
 therefore untestable, so it was extracted rather than trusted.
 
+**The third of those answers is the one that was missing longest, and it is the one a viewer actually
+asks out loud: *is this page alive*.** A hold is invisible — for twelve seconds at a time the sheet,
+the date stamp and the timeline are all legitimately still, which is the same frame a page that died is
+in — and about nine tenths of the film's running time is spent in one. That is why a working film was
+read as a frozen one **twice, by the person who asked for it**, and why the second report ("it stops
+around 1619" — the film's second beat) was not a rendering fault at all. So the dock draws it instead
+of describing it: a hairline under the timeline fills from nothing to full across the hold, and a line
+above the Play button counts the same hold down in whole seconds. `dwellLeft` is the single source for
+both, and — like the Play button beside them — both are derived from the state on every frame, so a
+scrub, a pause, a chapter change and the film's own arrival at a beat all move them without any of
+those four knowing they exist. While the film is paused both go empty rather than holding their last
+value, because the clock has stopped and a countdown that kept its number would be the one line here
+telling a lie. `dwellNote` is pure and `ui.test.js` pins its wording, its `Math.ceil` (the line must
+read `1s` and only then may the cursor move; `0s` beside a cursor that has not moved is the same lie
+`stillReason` refuses to tell), and its non-breaking-space padding — `12s` and `9s` are a character
+apart in a right-aligned line, so without it the dock shifted sideways once per beat as it passed ten.
+
+The hairline is a `scaleX` rather than a `width`, and it carries no CSS transition: a width would lay
+the dock out again on every frame of every hold, and a transition would be a second clock — the one the
+fill is meant to be *evidence* of.
+
 **One trap, and it cost a run — and the reversal above has turned it inside out.** Headless Chrome
 reports `prefers-reduced-motion: reduce` by default, so a headless check used to *inherit* a page that
 correctly refused to start; the first autoplay check read that as the feature being broken, and motion
@@ -697,10 +733,19 @@ in this project: motion that is not emulated is motion that is not being tested.
 **And a second trap, in the opposite direction, which is the one that found the bug.** A headless
 walk that samples every two seconds reported the bare URL as *playing but frozen* — the Play button
 said Pause and the date stamp never moved. Both readings were correct and the conclusion was wrong:
-the first twelve seconds of a chapter are `HOLD_SECONDS` of deliberate dwell on its opening beat, so
-the sample window ended exactly where the film was still standing still. Extend the window past the
-first hold and it moves. **A measurement with a window shorter than the phenomenon measures the
-window.**
+the opening of a chapter is a deliberate dwell — `HOLD_SECONDS` when this was found, and
+`OPENING_HOLD_SECONDS` on the three chapters that open on their own first beat — so the sample window
+ended exactly where the film was still standing still. Extend the window past the first hold and it
+moves. **A measurement with a window shorter than the phenomenon measures the window.**
+
+**And a third, which is about the clock rather than the window.** A harness timed each hold with
+`performance.now()` and reported the three-second arrival as 6.3 s and the twelve-second holds as
+15.2 s, on a page that was doing exactly what it said. `dt` is clamped to 50 ms a frame, so on a
+headless renderer that cannot hold 20 fps **film time runs slower than wall-clock time** — and taking
+a screenshot stalls the renderer on top of that, which is why the first of the two numbers was the
+wrong one by the larger margin. Anything the film counts out has to be read *in film seconds*: the
+dock's countdown is the measurement, and it is immune to the frame rate because it is a number the
+film is writing. Read a clock the film does not own, and the frame rate is what is being measured.
 
 ### The `@layer boot` hidden list is a trap
 
@@ -941,6 +986,33 @@ Settled on 2026-10-11, on a report that autoplay still did not work:
   an arity check alone stays green with the gate back in place. Verified by injection, both halves, red
   then restored; and note what the first injection showed — every other autoplay test in the block
   stayed green with the gate restored.
+- **A hold is drawn, because a state nobody can see is indistinguishable from a bug.** `dwellNote` plus
+  the hairline under the timeline (`#read`), both driven by `dwellLeft` in `ui/ui.js`, both empty while
+  the cursor travels and both still while the film is paused. This is the third answer to *why is it not
+  moving*, beside `stillReason`, and it is the one that cost two reports: a hold lasts twelve seconds,
+  about nine tenths of the running time is spent inside one, and during it the sheet, the date stamp and
+  the timeline are all legitimately still — so a working film and a dead page are the same screenshot.
+  The report that identified it was behavioural rather than visual: **"it stops around 1619"**, which is
+  the second beat of Chapter 1, and exactly where a viewer first meets a hold nobody has told them about.
+  Verified against the running page over CDP (`us-hold.mjs`) rather than in a unit test, because what was
+  broken was the wiring: the countdown reads 3, 2, 1 on an arrival and 12 … 1 on every other beat, at any
+  frame rate.
+- **A chapter's opening beat is held for the length of its arrival card, not for a reading time.**
+  `OPENING_HOLD_SECONDS` in `timeline/narration.js` — about three seconds, against
+  `TRANSITION.disperse + TRANSITION.reform`, so the sheet is never asked to sit still on a plate that has
+  not finished being drawn — pinned by a test, so shortening one without the other fails. That beat is
+  *announced* rather than discovered: it arrives with the chapter card, and Chapter 1 opens on it over a
+  near-empty plate, so the old behaviour was twelve seconds of nothing as the first thing this atlas ever
+  showed anyone. The predicate defaults to `null` rather than to `0`, because `0` is a legitimate "skip
+  this hold" and `||` would eat it. The film is 23:49 instead of 24:16, and Chapter 1's opening beat is
+  the reason any of this exists.
+- **A property of something that repeats has to be asked of one occurrence.** The first version of the
+  harness above required the fill to grow monotonically across *every* holding sample at once, and went
+  red on a correct page: the bar fills 0 → 1 inside one hold and starts again at 0 on the next beat, so
+  what the check measured was the reset between two holds. **An assertion spanning more than one instance
+  is an assertion about the repetition**, which is a different thing from the thing it names — the same
+  failure mode as the injection harness that reported seven false greens, and as the build that printed
+  `125.5 KB` for a 0-byte file, one level out from the code again.
 
 M0 is built end to end for **Chapter 2 Expansion (1783–1848)** and **Chapter 3 Division (1848–1865)** —
 the vertical slice's success criterion is a fifteen-second capture of Chapter 3 — and **all eight**

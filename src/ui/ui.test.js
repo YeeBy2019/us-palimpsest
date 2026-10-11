@@ -1,5 +1,6 @@
 /**
- * Whether the atlas starts playing on its own, and what its URL says.
+ * Whether the atlas starts playing on its own, what its URL says, and what it
+ * says while it is standing still on purpose.
  *
  * These are the smallest functions in the project with the largest blast
  * radius. The first is the difference between a page that shows you a film and a
@@ -9,15 +10,15 @@
  * paused. The second decides what a reload and a pasted link do, which is the
  * only state the atlas has that can be handed to anyone else.
  *
- * All three take their inputs as arguments precisely so they can be tested here.
- * `parseDeepLink` beside them in the same module cannot be, because its input is
- * `location`.
+ * All of them take their inputs as arguments precisely so they can be tested
+ * here. `parseDeepLink` beside them in the same module cannot be, because its
+ * input is `location`.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import { isoToYear } from '../lib/dates.js';
-import { permalinkFor, shouldAutoplay, stillReason } from './ui.js';
+import { dwellNote, permalinkFor, shouldAutoplay, stillReason } from './ui.js';
 
 /** What `parseDeepLink` returns, as far as playback cares. */
 const link = (over = {}) => ({ year: null, still: false, ...over });
@@ -178,5 +179,44 @@ describe('what the URL records', () => {
     // follows the film, and the still is still what a reload returns to.
     expect(permalinkFor('/atlas/', { chapterId: 'wwii', date: 1944.4, playing: true, still: true }))
       .toBe('/atlas/?chapter=wwii&still');
+  });
+});
+
+describe('what the page says while it is standing on a beat', () => {
+  it('says nothing while the cursor is travelling', () => {
+    // The note and the fill under the timeline are the dock's two halves of one
+    // answer — *is this page alive* — and the answer only exists during a hold.
+    // Zero is the travelling case, and it is also what a chapter with no written
+    // beats reports for its whole length.
+    expect(dwellNote(0)).toBe('');
+    expect(dwellNote(-1)).toBe('');
+  });
+
+  it('counts the hold down in whole seconds, rounding up', () => {
+    // `Math.ceil`, so the line reaches "1s" and only then does the cursor move.
+    // "0s" on a cursor that has not moved yet is a worse lie than no line, which
+    // is the same argument `stillReason` is written with.
+    expect(dwellNote(12)).toContain('12s');
+    expect(dwellNote(2.5)).toContain('3s');
+    expect(dwellNote(0.4)).toContain('1s');
+  });
+
+  it('keeps its width while it counts, so the dock does not twitch', () => {
+    // Padded to two digits with a non-breaking space and set in the monospace
+    // face, so twelve seconds and nine are the same number of characters. Without
+    // it the whole line shifted sideways as it passed ten, once per beat —
+    // subtle, and exactly the class of flicker that reads as a fault.
+    const width = (seconds) => [...dwellNote(seconds)].length;
+    expect(width(12)).toBe(width(9));
+    expect(width(3)).toBe(width(12));
+  });
+
+  it('exists exactly while there is a hold left to run', () => {
+    // The invariant `stillReason` is held to, and for the same reason: the line
+    // and the state it describes are separate, so they could drift. Here the
+    // state is whether the dock has a hold to draw at all.
+    for (const seconds of [0, 0.001, 1, 3, 12]) {
+      expect(Boolean(dwellNote(seconds))).toBe(seconds > 0);
+    }
   });
 });

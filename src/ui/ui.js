@@ -23,6 +23,15 @@
  * the page records about where it is — and {@link stillReason} is the answer to
  * the one a viewer actually asks out loud, *why is it not moving*, which the
  * dock prints beside the Play button.
+ *
+ * {@link dwellNote} is the other answer to that same question, and it is the
+ * one that was missing for longer. A hold — the cursor standing on a beat for
+ * its reading time — is *not moving* by design, for twelve seconds at a time,
+ * and the film spends about nine tenths of its running time in one. The picture
+ * cannot distinguish that from a page that died: sheet, stamp and timeline are
+ * all legitimately still. So the dock says it, and draws it: the note above the
+ * Play button counts the hold down, and a hairline under the timeline fills
+ * while it runs.
  */
 
 import { isoToYear, parseIso, yearToIso, yearToLabel } from '../lib/dates.js';
@@ -77,6 +86,17 @@ export class Interface {
     this.stillReason = stillReason(link);
   }
 
+  /**
+   * The hold fill last written to the timeline, 0..1.
+   *
+   * Kept so an idle frame costs no style write — the stamp and the Play button
+   * are compared before being written for the same reason — and because the
+   * value compared has to be one the browser can round-trip: the fill is written
+   * as a number with three decimals, so comparing raw floats would rewrite the
+   * same string sixty times a second to no effect on screen.
+   */
+  #dwellFill = -1;
+
   /** This chapter's beats, in date order. Rebuilt on a chapter change. */
   #beats = [];
 
@@ -102,6 +122,8 @@ export class Interface {
       rewind: document.getElementById('rewind'),
       material: document.getElementById('material'),
       hint: document.getElementById('hint'),
+      hold: document.getElementById('hold'),
+      read: document.getElementById('read'),
       card: document.getElementById('card'),
       cardIndex: document.getElementById('card-index'),
       cardName: document.getElementById('card-name'),
@@ -279,8 +301,41 @@ export class Interface {
     this.dom.scrub.value = String(Math.round(this.state.progress * SCRUB_STEPS));
     this.#syncPlayButton();
     this.#syncHint();
+    this.#syncDwell();
     this.#syncStory(year);
     this.#maybeWriteUrl();
+  }
+
+  /**
+   * Draw the hold in progress, and say how long is left of it.
+   *
+   * A hold is the film standing still **on purpose**, and it is where nine
+   * tenths of the running time goes — so it is the state that most needs
+   * drawing and the state the picture can least draw. Two pixels under the
+   * timeline fill as the reading time runs out; the countdown above the Play
+   * button says how long.
+   *
+   * Derived every frame from the state, like the Play button beside it, so a
+   * scrub, a pause, a chapter change and the film's own arrival at a beat all
+   * move it without any of them knowing it exists.
+   */
+  #syncDwell() {
+    // Only while the hold is actually running. Paused, the dock's convention is
+    // to say nothing and let the Play button carry it — and a countdown that
+    // kept its number while the clock was stopped would be the one line here
+    // telling a lie.
+    const left = this.state.playing ? this.state.dwellLeft : 0;
+
+    const text = left > 0 ? dwellNote(this.state.dwell) : '';
+    if (this.dom.hold.textContent !== text) this.dom.hold.textContent = text;
+
+    // Filling rather than emptying, so the line is *seen* to move: a countdown
+    // that starts full and drains reads as something running out, and the
+    // question being answered is "is this alive", not "is this over".
+    const fill = left > 0 ? Math.round((1 - left) * 1000) / 1000 : 0;
+    if (this.#dwellFill === fill) return;
+    this.#dwellFill = fill;
+    this.dom.read.style.transform = `scaleX(${fill})`;
   }
 
   /**
@@ -464,6 +519,33 @@ export function shouldAutoplay(link) {
 export function stillReason(link) {
   if (link.still) return 'Held still by the link — press Play to start';
   return null;
+}
+
+/**
+ * What the dock says while the cursor is standing on a beat.
+ *
+ * The second half of the job {@link stillReason} does, and the half that was
+ * missing. A hold is invisible in the picture — for twelve seconds the sheet,
+ * the stamp and the timeline are all legitimately still, which is the same frame
+ * a page that died is in — and the film spends about nine tenths of its running
+ * time in one. Read as a still page, it was read as a broken one; the difference
+ * between "it stopped" and "it is standing on a beat" is not in the drawing, so
+ * it has to be in the writing.
+ *
+ * Seconds rather than a fraction: the number is for a person watching, and the
+ * fill beside it under the timeline is the fraction. `Math.ceil`, so it counts
+ * down 12, 11 … 1 and never reads "0s" while the cursor has not yet moved.
+ *
+ * Padded to two digits with a non-breaking space, so the line does not change
+ * width when it passes from twelve seconds to nine — `dock__hold` is set in the
+ * monospace face, where a non-breaking space is exactly a digit wide.
+ *
+ * Pure, and beside the reason it stands next to, so the wording is pinned by a
+ * test rather than typed into `ui.js` where nothing can check it.
+ */
+export function dwellNote(seconds) {
+  if (!(seconds > 0)) return '';
+  return `Standing on a beat — ${String(Math.ceil(seconds)).padStart(2, '\u00A0')}s`;
 }
 
 /**

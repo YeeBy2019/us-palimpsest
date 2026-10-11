@@ -105,16 +105,36 @@
                this is the cheapest way to say "there are nine moments here"
                without a second control. Decorative, so hidden from the tree. -->
           <div class="dock__beats" id="beats" aria-hidden="true"></div>
+          <!-- The hold, drawn. A hold is the film standing still on purpose for
+               a beat's whole reading time, and it is where nine tenths of the
+               running time goes — so it is the state that most needs showing and
+               the one the picture cannot show, because the sheet, the stamp and
+               this timeline are all legitimately still for the length of it.
+               Two pixels that fill while it runs. Empty while travelling, and
+               while paused, which the Play button already accounts for. -->
+          <div class="dock__read" id="read" aria-hidden="true"></div>
         </div>
 
         <div class="dock__controls">
           <button class="dock__button" id="play" type="button" aria-pressed="false">Play</button>
           <button class="dock__button" id="rewind" type="button">Restart</button>
-          <!-- Why the atlas is not moving, while it is not. Both reasons the
-               film can decline to start — `?still` in the link, reduced motion
-               in the operating system — are invisible in the picture, and a
-               page held still on purpose is otherwise indistinguishable from a
-               page that failed. Empty whenever the film is running. -->
+          <!-- How long the cursor will stand where it is. The other half of the
+               rule above: the reasons the film *declines* to start are few and
+               visible in the URL, but the reason it is not moving while it is
+               playing is the hold — twelve seconds of it, most of the time —
+               and that one is nowhere in the picture at all.
+
+               Out of flow, in the corner above the Play button, because this
+               line changes every second and a line that changes every second in
+               the dock's flex row would walk the buttons left and right once
+               per beat. Empty while the cursor is travelling or the film is
+               stopped. -->
+          <p class="dock__hold" id="hold"></p>
+          <!-- Why the atlas is not moving, while it is not. The one reason the
+               film can decline to start — `?still` in the link — is invisible in
+               the picture, and a page held still on purpose is otherwise
+               indistinguishable from a page that failed. Empty whenever the
+               film is running. -->
           <p class="dock__hint" id="hint"></p>
           <p class="dock__material" id="material"></p>
         </div>

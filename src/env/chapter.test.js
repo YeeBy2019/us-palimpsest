@@ -200,6 +200,122 @@ describe('standing on a beat', () => {
 });
 
 /**
+ * When a beat is an arrival rather than a stop.
+ *
+ * The chapter's opening beat is the one beat the chapter card announces, so it
+ * is held for the length of that card and the reading time is kept for the beats
+ * that are news. Chapter 1 used to open on twelve seconds of a still,
+ * near-empty plate because of it — the first thing anyone saw of this atlas, and
+ * reported as the film having stopped.
+ *
+ * `openingHoldSeconds` is not consulted for any other beat, and its default is
+ * the reading time rather than zero, which is what the tests above are written
+ * against: unset means "play the way you always did".
+ */
+describe('holding a chapter’s arrival for less than its reading time', () => {
+  const arriving = (holds, holdSeconds, openingHoldSeconds) => {
+    const state = new ChapterState(wwii);
+    state.holds = holds;
+    state.holdSeconds = holdSeconds;
+    state.openingHoldSeconds = openingHoldSeconds;
+    state.play();
+    return state;
+  };
+
+  it('stands on the opening beat for the length of the chapter card', () => {
+    const state = arriving([wwii.start], 12, 3);
+    state.update(1, 0);
+
+    // Still landed on exactly, and still a hold — the opening beat is not
+    // skipped, it is held for as long as the thing announcing it.
+    expect(state.date).toBe(wwii.start);
+    expect(state.heldAt).toBe(wwii.start);
+    expect(state.dwell).toBeCloseTo(3, 6);
+  });
+
+  it('gives every later beat the full reading time', () => {
+    const state = arriving([wwii.start + 0.1], 12, 3);
+    state.update(1, 0);
+
+    expect(state.date).toBe(wwii.start + 0.1);
+    expect(state.dwell).toBeCloseTo(12, 6);
+  });
+
+  it('walks straight on when the opening hold is nothing', () => {
+    // The knob at its limit, and the reason the fallback is nullish rather than
+    // `||`: zero is a real answer here, not an absent one.
+    const state = arriving([wwii.start], 12, 0);
+    state.update(1, 0);
+    expect(state.dwell).toBe(0);
+
+    state.update(1, 1);
+    expect(state.date).toBeGreaterThan(wwii.start);
+  });
+
+  it('reads the reading time when nobody has said otherwise', () => {
+    const state = arriving([wwii.start], 12, null);
+    state.update(1, 0);
+
+    expect(state.dwell).toBeCloseTo(12, 6);
+  });
+});
+
+/**
+ * The hold as a fraction, which is what the dock draws.
+ *
+ * The picture cannot show a hold — the sheet, the stamp and the timeline are all
+ * legitimately still for the length of one, and the film spends about nine
+ * tenths of its running time in one — so the dock draws it, and this is the
+ * number it draws with. It has to be measured against the length of *this* hold:
+ * against `holdSeconds`, a three-second arrival hold would begin a quarter
+ * spent, and a countdown that starts part-drained reads as a rendering fault.
+ */
+describe('how much of the hold is left', () => {
+  const holding = (holds, holdSeconds) => {
+    const state = new ChapterState(wwii);
+    state.holds = holds;
+    state.holdSeconds = holdSeconds;
+    state.play();
+    return state;
+  };
+
+  it('is one when the hold begins and falls as it is spent', () => {
+    const state = holding([wwii.start + 0.1], 4);
+
+    state.update(1, 0);
+    expect(state.dwellLeft).toBeCloseTo(1, 6);
+
+    state.update(2, 1);
+    expect(state.dwellLeft).toBeCloseTo(0.5, 6);
+
+    state.update(2, 2);
+    expect(state.dwellLeft).toBe(0);
+  });
+
+  it('is nothing while the cursor is travelling', () => {
+    const state = holding([wwii.start + 20], 4);
+    state.update(1, 0);
+
+    expect(state.dwell).toBe(0);
+    expect(state.dwellLeft).toBe(0);
+  });
+
+  it('measures an arrival hold against its own length, not the reading time', () => {
+    const state = new ChapterState(wwii);
+    state.holds = [wwii.start];
+    state.holdSeconds = 12;
+    state.openingHoldSeconds = 3;
+    state.play();
+
+    state.update(0.001, 0);
+    expect(state.dwellLeft).toBeCloseTo(1, 6);
+
+    state.update(1.5, 1);
+    expect(state.dwellLeft).toBeCloseTo(0.5, 6);
+  });
+});
+
+/**
  * Handing the film on.
  *
  * A chapter's end used to be a terminus: a play-through ran the chapter out and

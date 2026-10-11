@@ -158,6 +158,34 @@ export const HOLD_SECONDS = 12;
 export const TRAVEL_SECONDS = 20;
 
 /**
+ * How long the cursor stands on a chapter's **opening beat** — the one dated
+ * the day the chapter opens — in seconds.
+ *
+ * Shorter than {@link HOLD_SECONDS}, and the reason is that the opening beat is
+ * the only beat that is *announced*. Every other beat is discovered: the cursor
+ * arrives and the card is news. The opening one arrives with the chapter, and
+ * the chapter card is already inking over the sheet to say so. Holding it for
+ * the full reading time therefore spends twelve seconds repeating an
+ * introduction, on a plate that has nothing on it yet — because a line dated
+ * the day the chapter opens has only just begun, which is what `aFrom` means in
+ * `world/boundaries.js`: it does not fade in, it is already there. On the
+ * atlas's own first chapter "already there" is the James, a route **1% of the
+ * sheet's width**: six pixels of ink on a blank page.
+ *
+ * So Chapter 1 used to open on twelve seconds of a still, near-empty sheet with
+ * a frozen stamp and a motionless timeline — the first thing anyone saw, and
+ * indistinguishable from a page that failed to start. It was reported as
+ * exactly that. The hold now lasts as long as the card that announces it,
+ * `TRANSITION.disperse + TRANSITION.reform + 0.4` in `env/chapter.js` — about
+ * 2.4 s, which `narration.test.js` pins this against — and the cursor then
+ * walks, so the plate is drawing within the first second.
+ *
+ * Every other beat keeps the full reading time. The film is 100 s shorter for
+ * it; nothing else about it changes.
+ */
+export const OPENING_HOLD_SECONDS = 3;
+
+/**
  * The pace a chapter plays at when it has no beats — M0's value, unchanged.
  * Expressed as a fraction of the chapter's own span per second, so a four-year
  * chapter and a hundred-and-sixty-year one play at the same felt speed.
@@ -170,7 +198,9 @@ export const DEFAULT_PACE = 0.055;
  * A written chapter walks its span in {@link TRAVEL_SECONDS} and stands at each
  * beat for {@link HOLD_SECONDS}, so the chapter takes
  * `TRAVEL_SECONDS + beats × HOLD_SECONDS` to play — about two minutes for
- * Chapter 6. An unwritten one keeps M0's pace and no holds at all.
+ * Chapter 6. One beat is cheaper than that: the opening one, which is held for
+ * {@link OPENING_HOLD_SECONDS} because the chapter card announces it. An
+ * unwritten chapter keeps M0's pace and no holds at all.
  *
  * Note what this deliberately is *not*: a function of how many beats there are,
  * or how far apart they fall. Both of those made the reading time a side effect

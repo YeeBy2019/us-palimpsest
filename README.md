@@ -171,9 +171,10 @@ to be built:
 ### It plays itself
 
 Eight written chapters in order are a documentary, so the atlas does not wait to be driven: opening
-the page runs it, from Jamestown to the sixth of January, about twenty-four and a half minutes of it.
-A chapter's length is `TRAVEL_SECONDS + beats × HOLD_SECONDS`, so each one runs between 2:08 and 3:32
-depending on how much there is to say.
+the page runs it, from Jamestown to the sixth of January, twenty-three minutes and forty-nine seconds
+of it. A chapter's length is `TRAVEL_SECONDS + beats × HOLD_SECONDS`, minus nine seconds when its first
+beat is the chapter's own opening (that hold is the arrival card's, not reading time; see below), so
+each one runs between 1:59 and 3:32 depending on how much there is to say.
 
 That makes the end of a chapter a **hand-off** rather than a terminus, which is the one thing the
 feature actually cost. The frame loop used to stop a play-through when the cursor reached the chapter's
@@ -227,6 +228,14 @@ exactly as long as the cursor is not moving. That reason is invisible in the pic
 leaving such a thing unsaid is the whole shape of both reversals above: a page that declines to move
 and says nothing about it is a page that reads as broken.
 
+The same argument applies to the film standing still while it *runs*, which took a second report to
+see. A hold is invisible in the picture — for the length of one, the sheet, the stamp and the timeline
+are all legitimately still, which is the same frame a page that died is in — and about nine tenths of
+the film's running time is spent in one. So the dock draws it as well: a hairline under the timeline
+fills while the hold runs out, and a line above the Play button counts it down — *Standing on a beat —
+8s*. Both are empty while the cursor is travelling, and both stand still while the film is paused,
+which is honest rather than tidy: the clock is stopped too.
+
 ### What it did cost, and why a pace was not enough
 
 Playing *is* the date cursor moving, so a chapter with something to read has to stop moving. The
@@ -243,9 +252,21 @@ beat now gets the same reading time whether two moments are a month apart or a d
 varies instead — which is honest, because the walk is the part nobody has to read. While a beat is
 held, the geometry is held too: the frame is a held shot rather than a moving one.
 
-The state machine is told a pace, a list of dates and a duration, and never learns what is at any of
-them. `src/env/chapter.js` still knows nothing about history; the whole of the coupling is
-`applyStoryTiming` in `src/main.js`.
+One beat is cheaper than the reading time, and it is the one that matters most. A chapter's **opening**
+beat is not discovered, it arrives with the chapter — the chapter card is inking over the sheet to
+announce it — so it is held for the length of that card (`OPENING_HOLD_SECONDS`, about three seconds)
+and the reading time is kept for the beats that are news. Chapter 1 is the case that forced it. Its
+first beat is dated the day the chapter opens, so the film used to *begin* on twelve seconds of a
+still, near-empty plate: chapter 1 has no boundary geometry by design, its opening route is a corridor
+one per cent of the sheet wide, and the card and the stamp could not change because the date was not
+moving. Twelve seconds of that is the first thing anyone sees of this atlas, and it is what "it stops
+around 1619" turned out to mean the second time it was reported. Holding an arrival for the length of
+its own announcement is also what stops a chapter hand-off reading as eight films with a pause between
+them.
+
+The state machine is told a pace, a list of dates, and *two* durations — the reading time and the
+arrival — and never learns what is at any of the dates. `src/env/chapter.js` still knows nothing about
+history; the whole of the coupling is `applyStoryTiming` in `src/main.js`.
 
 ### What the story cannot do yet
 
