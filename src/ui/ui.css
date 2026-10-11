@@ -282,6 +282,14 @@ body {
   color: var(--paper);
 }
 
+.dock__hint {
+  margin: 0 0 0 6px;
+  max-width: 34ch;
+  font-size: 11px;
+  color: var(--ink);
+  opacity: 0.72;
+}
+
 .dock__material {
   margin: 0 0 0 6px;
   max-width: 30ch;

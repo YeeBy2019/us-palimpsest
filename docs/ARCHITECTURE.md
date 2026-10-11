@@ -208,15 +208,27 @@ The URL is the state. Ours:
 | `intro` | show the opening chapter card even with the film held still | `intro` |
 
 So `?chapter=division&date=1861-04-12&anchor=1783,1861` opens directly on the M0 shot. That is the
-acceptance test for M0 made linkable, which means it can also be put in a review comment.
+acceptance test for M0 made linkable, which means it can also be put in a review comment. A shot that
+is meant to be *looked at* rather than watched adds `&still` — and that is the point of the flag being
+a word in the link: whoever receives it can see why the page is not moving.
 
 `still` is a bare flag rather than a value, the same shape `intro` has, because it is a mode and not a
-setting. Neither of them survives a reload — `#maybeWriteUrl` rewrites the whole query string to
-`chapter` and `date` within a quarter second of the first frame, which is deliberate: those two are
-the state, and everything else is an instruction about how to *arrive*. It has a consequence worth
-knowing, because it is the thing that decides what a refresh does mid-film: a reload lands on the frame
-the cursor was on, paused, since a link that names a date never autoplays. The URL records where the
-cursor is, not whether it was moving.
+setting. `anchor`, `tier` and `intro` do not survive a reload — `#maybeWriteUrl` rewrites the query
+string to the position within a quarter second of the first frame, which is deliberate: those three
+are instructions about how to *arrive*, and the URL is meant to be a place. **`still` is carried
+through**, because it is not an instruction about arriving — it decides what the page does once it is
+there, so a URL that dropped it would be a copy of something else: hand it on and the page starts
+moving, which is the same surprise as the one the date rule caused.
+
+The writer's rule is one line and worth reading as a rule: **the day is recorded only while the cursor
+is held.** Paused, scrubbed, or arrived by a chapter click, the URL carries `date` to the day, so a
+pause is a link someone can be sent. While the film runs it carries the chapter alone. A reload of a
+moving picture has always meant *start the reel again*, so there is nothing finer worth recording —
+and the alternative is worse than wasteful: the cursor crosses a day in under a millisecond, so
+writing it means four `history.replaceState` calls a second for twenty-four minutes. Safari throws a
+`SecurityError` after a hundred in thirty seconds, and this runs inside the frame loop, so the first
+throw would end the page along with the film, on the one browser this atlas has never been opened in.
+Writing on a chapter change instead is eight writes for a whole run.
 
 ## Module layout
 
@@ -652,8 +664,16 @@ state.openingChapter = BUILT_CHAPTERS[0];
 The decision about whether to autoplay at all is `shouldAutoplay` in `ui/ui.js`, next to
 `parseDeepLink`, because it is mostly a URL question. It takes its two inputs as arguments rather than
 reading `location` and `matchMedia`, so it can be pinned by a test — which is the same reason its
-neighbour cannot be. It says no for three reasons, two of them documented in the deep link table
-above and the third being `prefers-reduced-motion`.
+neighbour cannot be. It says no for exactly two reasons: `?still` in the link, and
+`prefers-reduced-motion` on the machine. A date in the URL is *where to open*, not whether to move;
+that it used to be a third reason is the single reversal in this feature, and the decision log has it.
+
+`stillReason` sits beside it and answers the other half of the same question — *why not* — because the
+two reasons are both invisible in the picture, and a page held still on purpose is otherwise
+indistinguishable from a page that failed. Its wording is pinned by a test, including one that asserts
+the invariant across all four combinations: a reason exists exactly when the film is not going to
+start. `ui/ui.test.js` also pins `permalinkFor`, the URL policy, for the same reason — the policy was
+inside a DOM method and therefore untestable, so it was extracted rather than trusted.
 
 **One trap, and it cost a run.** Headless Chrome reports `prefers-reduced-motion: reduce` by default,
 so a headless check *inherits* a page that correctly refuses to start. The first autoplay check read
@@ -661,6 +681,14 @@ that as the feature being broken; motion has to be emulated back on with
 `Emulation.setEmulatedMedia` before the film is visible at all. The same trap points the other way
 for every other headless check in this project: motion that is not emulated is motion that is not
 being tested — which is why the audit walk has always seen a still plate and always will.
+
+**And a second trap, in the opposite direction, which is the one that found the bug.** A headless
+walk that samples every two seconds reported the bare URL as *playing but frozen* — the Play button
+said Pause and the date stamp never moved. Both readings were correct and the conclusion was wrong:
+the first twelve seconds of a chapter are `HOLD_SECONDS` of deliberate dwell on its opening beat, so
+the sample window ended exactly where the film was still standing still. Extend the window past the
+first hold and it moves. **A measurement with a window shorter than the phenomenon measures the
+window.**
 
 ### The `@layer boot` hidden list is a trap
 
@@ -822,12 +850,38 @@ Settled on 2026-10-10, on the request that the atlas play itself:
   pausing on a chapter click let a viewer browse the selector, switch the film off without noticing,
   and come back to a still page wondering what broke. Scrubbing still pauses, because taking hold of
   the timeline is leaving the story; Restart still pauses, because it is a rewind.
-- **Three things suppress autoplay, and each is an existing promise rather than a preference.** A
-  link that names a date (the deep link is a shot to look at, and the URL is rewritten as the cursor
-  moves, so this is also what a reload mid-film does); `?still`, so a chapter can be shared without
-  starting a screening; and `prefers-reduced-motion`, which belongs to the viewer rather than to the
-  sender of the link. The predicate is `shouldAutoplay` in `ui/ui.js`, pure so that it can be tested —
-  `parseDeepLink` beside it cannot be, and this is the larger blast radius of the two.
+- **A date in the URL no longer suppresses autoplay — the one reversal here.** The rule was that a
+  dated link holds still, so a shot pasted into a message would not walk away from the frame it was
+  sent for. It failed because **the page writes its own URL**: `#maybeWriteUrl` records the position,
+  so within a second of arriving every ordinary visitor's address bar held a date, and every reload,
+  restored tab and bookmark of the page they had just watched was silently a still frame. Autoplay had
+  become a once-ever event, with nothing on screen to say why — reported from a browser, not from a
+  test. A rule that turns the common case into the exception is not a rule about links. Stillness is
+  now only `?still`, which has a property the old clause could not: it is *legible*, so a page that is
+  not moving says so in its own URL.
+- **`?still` overrides autoplay, and each of the two remaining suppressors is an existing promise
+  rather than a preference.** `?still` so a chapter can be shared without starting a screening;
+  `prefers-reduced-motion`, which belongs to the viewer rather than to the sender of the link. The
+  predicate is `shouldAutoplay` in `ui/ui.js`, pure so that it can be tested — `parseDeepLink` beside
+  it cannot be, and this is the larger blast radius of the two.
+- **The URL records the day only while the cursor is held.** Held — paused, scrubbed, or arrived by a
+  chapter click — it carries `date` to the day, so a pause is a link someone can be sent. Running, it
+  carries the chapter alone, because a reload of a moving picture means *start the reel again* and
+  there is nothing finer worth pinning. The second reason is not aesthetic: the cursor crosses a day
+  in under a millisecond, so writing it meant four `history.replaceState` calls a second for
+  twenty-four minutes, and Safari throws a `SecurityError` after a hundred in thirty seconds. That
+  throw would happen inside the frame loop, so the first one would end the page with the film — on the
+  one browser this atlas has never been opened in. Extracted to `permalinkFor` in `ui/ui.js`, so the
+  policy is testable rather than buried in a DOM method.
+- **`still` is carried through the URL rewrite; `anchor`, `tier` and `intro` are not.** Those three
+  say how to *arrive*; `still` decides what the page *does* once it is there. Dropping it would hand
+  the next person a page that starts moving — the same surprise as the date rule, one step further
+  along.
+- **The dock says why it is not moving.** `stillReason` in `ui/ui.js`, shown beside the Play button for
+  exactly as long as the cursor is stopped. Both reasons are invisible in the picture, so a page held
+  still on purpose and a page that failed are the same screenshot; the bug above is what that costs.
+  The wording is pinned by a test, as is the invariant across all four combinations — a reason exists
+  exactly when the film is not going to start.
 - **The film walks the built chapters, so `chapters.js` gained `nextBuiltChapter`.** The existing
   `nextChapter` walks all of `CHAPTERS`, which is the record's order and the right answer for
   anything that is about the record — but handing the film a chapter with no bundle sends it through a

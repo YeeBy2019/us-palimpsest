@@ -186,18 +186,36 @@ a seek does in a player — pausing there let a viewer browse the selector, swit
 noticing, and come back to a still page wondering what broke. Scrubbing still pauses, because taking
 hold of the timeline is leaving the story, and Restart still pauses, because it is a rewind.
 
-Three things hold still instead, and each is a promise the atlas has already made rather than a
+Two things hold still instead, and each is a promise the atlas has already made rather than a
 preference:
 
-- **A link that names a date.** `?chapter=wwii&date=1944-06-06` is a shot to be looked at, so it stays
-  where it lands. The URL is rewritten as the cursor moves, so this also decides what a reload does
-  mid-film: it lands on that frame, paused. The URL records *where the cursor is*, not whether it was
-  moving.
 - **`?still`.** A link can name a chapter without starting a screening — sharing "look at Chapter 6"
-  should not mean "and then watch it leave".
+  should not mean "and then watch it leave". It is now the only way to ask, and that is the point:
+  stillness is **legible**. A page that is not moving says so in its own URL, so a viewer can tell a
+  deliberate still from a picture that looks broken.
 - **`prefers-reduced-motion`.** Continuous motion is the most aggressive thing the page does, and the
   setting belongs to the viewer rather than to whoever sent the link, so it wins. The rest of the
   atlas's motion is still owed to that setting; see M5.
+
+A link naming a date used to be a third, and dropping it is the one thing this feature has reversed.
+The rule read well — `?chapter=wwii&date=1944-06-06` is a shot to be looked at, so it stays where it
+lands — and it failed in the direction that matters, because **the page writes its own URL**. Within a
+second of arriving, the address bar held a date. Every reload, every restored tab, every bookmark of
+the page a visitor had just watched was, under that rule, a still frame: autoplay had quietly become a
+once-ever event, with nothing on screen to say why. A rule that turns the common case into the
+exception is not a rule about links.
+
+What the URL records changed with it. While the cursor is **held** — paused, scrubbed, or arrived by
+clicking a chapter — it carries the day, so a pause is a link someone can be sent. While the film runs
+it carries the chapter alone: a reload of a moving picture has always meant *start the reel again*,
+and writing a day the cursor leaves within a millisecond meant four `history.replaceState` calls a
+second for twenty-four minutes. Safari throws after a hundred in thirty seconds, and this runs inside
+the frame loop — the first throw would take the page with it, on the one browser the atlas has never
+been opened in. It is eight writes for a whole run now.
+
+When the film does not start, the dock says so — *Held still by the link*, or *Reduced motion* —
+beside the Play button, for exactly as long as the cursor is not moving. Both reasons are invisible in
+the picture, and the cost of leaving them unsaid was the paragraph above.
 
 ### What it did cost, and why a pace was not enough
 

@@ -19,7 +19,10 @@
  * And it owns the question of whether the atlas plays itself, which is a URL
  * question more than a button question: {@link shouldAutoplay} reads the link
  * and the viewer's motion setting, and says whether the film starts without
- * being asked. `main.js` is what acts on the answer.
+ * being asked; `main.js` is what acts on the answer. {@link permalinkFor} is the
+ * other half of that question — what the page records about where it is — and
+ * {@link stillReason} is the answer to the one a viewer actually asks out loud,
+ * *why is it not moving*, which the dock prints beside the Play button.
  */
 
 import { isoToYear, parseIso, yearToIso, yearToLabel } from '../lib/dates.js';
@@ -42,8 +45,37 @@ const SCRUB_STEPS = 1000;
 const THUMB_HALF = 4.5;
 
 export class Interface {
-  /** Throttle clock for URL rewriting; see `#maybeWriteUrl`. */
+  /**
+   * Throttle clock for URL rewriting; see `#maybeWriteUrl`.
+   *
+   * Still needed now that the URL only changes at a chapter boundary or a pause:
+   * a pause can arrive on any frame, and without it the write could land
+   * mid-transition while the state is between two chapters.
+   */
   #lastUrl = 0;
+
+  /**
+   * The link this page was opened with, and the line to show while the film is
+   * not running.
+   *
+   * Both come from the URL and are read once, at boot, in one place — the
+   * permalink writer needs to know whether the link asked for a still, and the
+   * dock needs to know why it is not moving. `null` reason means the atlas is
+   * going to start itself, which is the common case.
+   */
+  link = null;
+
+  stillReason = null;
+
+  /**
+   * Take the link, and the viewer's motion setting, as facts about this visit.
+   *
+   * Called before `mount`, because the dock reads both on its first frame.
+   */
+  openedWith(link, reducedMotion) {
+    this.link = link;
+    this.stillReason = stillReason(link, reducedMotion);
+  }
 
   /** This chapter's beats, in date order. Rebuilt on a chapter change. */
   #beats = [];
@@ -69,6 +101,7 @@ export class Interface {
       play: document.getElementById('play'),
       rewind: document.getElementById('rewind'),
       material: document.getElementById('material'),
+      hint: document.getElementById('hint'),
       card: document.getElementById('card'),
       cardIndex: document.getElementById('card-index'),
       cardName: document.getElementById('card-name'),
@@ -245,8 +278,22 @@ export class Interface {
     if (this.dom.stamp.value !== label) this.dom.stamp.value = label;
     this.dom.scrub.value = String(Math.round(this.state.progress * SCRUB_STEPS));
     this.#syncPlayButton();
+    this.#syncHint();
     this.#syncStory(year);
     this.#maybeWriteUrl();
+  }
+
+  /**
+   * Say why the page is not moving, for as long as it is not.
+   *
+   * Derived every frame from `playing`, like the Play button beside it, so the
+   * line leaves the moment anyone starts the film — including when the film
+   * starts itself, and without every caller that can change `playing` having to
+   * remember to clear it.
+   */
+  #syncHint() {
+    const text = this.state.playing ? '' : (this.stillReason ?? '');
+    if (this.dom.hint.textContent !== text) this.dom.hint.textContent = text;
   }
 
   /** The chapter card: inked in over the sheet, then out. */
@@ -301,13 +348,12 @@ export class Interface {
     if (now - this.#lastUrl < 250) return;
     this.#lastUrl = now;
 
-    const params = new URLSearchParams();
-    params.set('chapter', this.state.chapter.id);
-    // To the day, not to the month. Month precision made the link lossy against
-    // a reader that wanted a day, so a reload could land up to a month early.
-    params.set('date', yearToIso(this.state.date));
-
-    const url = `${location.pathname}?${params.toString()}`;
+    const url = permalinkFor(location.pathname, {
+      chapterId: this.state.chapter.id,
+      date: this.state.date,
+      playing: this.state.playing,
+      still: this.link?.still ?? false,
+    });
     if (url !== `${location.pathname}${location.search}`) {
       history.replaceState(null, '', url);
     }
@@ -349,23 +395,35 @@ export function parseDeepLink() {
 /**
  * Does the atlas start playing on its own?
  *
- * Yes by default. The eight chapters are one continuous run and a person who
- * opens the page has asked to be shown it, so the atlas starts itself rather
- * than waiting to be driven — which is also the only way the narrative layer
- * gets read, since a visitor who never presses Play sees the opening date and
- * one card.
+ * Yes by default, and on **any** link. The eight chapters are one continuous
+ * run and a person who opens the page has asked to be shown it, so the atlas
+ * starts itself rather than waiting to be driven — which is also the only way
+ * the narrative layer gets read, since a visitor who never presses Play sees the
+ * opening date and one card behind a title card.
  *
- * Three things override that default, and each is a promise the atlas has
- * already made rather than a preference:
+ * A date in the URL says *where to open*, not whether to move.
  *
- * - **A link that names a date is a link to a moment, not to the film.** The
- *   deep link exists so that a shot can be pasted into a message and land on
- *   that shot, which means the cursor has to stay where it landed. Playing it
- *   would carry the reader off the frame they were sent to look at, and the one
- *   thing the URL is for is holding a frame still.
- * - **`?still`.** The escape hatch, and it is not redundant with the rule above:
- *   a link that names a *chapter* and no date is a legitimate thing to share,
- *   and without this there would be no way to share one without it starting to
+ * That is a reversal, and the reason is worth keeping. The rule used to be that
+ * a link naming a date held still, so a shot pasted into a message would stay on
+ * the frame it was sent for. It reads well and it failed in the direction that
+ * matters, because **the page writes its own URL**: `#maybeWriteUrl` records the
+ * chapter and the day, so within a second of arriving, every ordinary visitor's
+ * address bar contained a date. Every reload, every restored tab, every bookmark
+ * of the page they had just watched was — under that rule — a still frame, and
+ * autoplay became a once-ever event with nothing on screen to say why. A rule
+ * that turns the common case into the exception is not a rule about links.
+ *
+ * Stillness is now `?still`, which has a property the old clause could not have:
+ * it is **legible**. A page that is not moving says so in its own URL, so a
+ * viewer — or whoever is reading over their shoulder — can tell a deliberate
+ * still from a picture that looks broken. That distinction is the whole reason
+ * this atlas bothers to tell you *why*; see {@link stillReason}.
+ *
+ * Two things override the default, and each is a promise the atlas has already
+ * made rather than a preference:
+ *
+ * - **`?still`.** The escape hatch. `?chapter=wwii` is a legitimate thing to
+ *   share and `?chapter=wwii&still` is how to share it without it starting to
  *   move. See the deep link table in `docs/ARCHITECTURE.md`.
  * - **`prefers-reduced-motion`.** Continuous motion is the most aggressive
  *   thing this page does, and the setting belongs to the viewer rather than to
@@ -378,5 +436,60 @@ export function parseDeepLink() {
  * `location`.
  */
 export function shouldAutoplay(link, reducedMotion) {
-  return !reducedMotion && !link.still && link.year === null;
+  return !reducedMotion && !link.still;
+}
+
+/**
+ * Why the film is not starting, in one line, or `null` when it is.
+ *
+ * Exists because the two reasons are both invisible in the picture: a page held
+ * still by `?still` and a page held still by the operating system look exactly
+ * like a page where something went wrong. This project's rule is that a state
+ * nobody can see is indistinguishable from a bug, and the one time the rule was
+ * broken in the other direction — the atlas declining to start and saying
+ * nothing — it cost a run and a round of guessing.
+ *
+ * Pure, and beside the predicate it explains, so the wording is pinned by a test
+ * rather than typed into `main.js` where nothing can check it.
+ */
+export function stillReason(link, reducedMotion) {
+  if (reducedMotion) return 'Reduced motion — press Play to start';
+  if (link.still) return 'Held still by the link — press Play to start';
+  return null;
+}
+
+/**
+ * What the URL should say about the position being shown.
+ *
+ * The day is written **only when the cursor is held** — paused, scrubbed, or
+ * arrived by clicking a chapter. While the film runs, the URL records the
+ * chapter and nothing finer. Two reasons, and they happen to agree:
+ *
+ * - **A permalink is a still frame.** `date=` is the part that pins a moment.
+ *   There is no moment to pin while the cursor is moving, and a reload should
+ *   not land on a frame the film has already left — which is what the returned
+ *   chapter alone gives: the reel starts over, which is what a reload of a
+ *   moving picture has always meant.
+ * - **`replaceState` is rate-limited.** The cursor crosses a day in well under a
+ *   millisecond, so the string changes on essentially every frame; writing it
+ *   meant four `replaceState` calls a second for twenty-four minutes. Safari
+ *   throws a `SecurityError` after a hundred in thirty seconds — and this runs
+ *   inside the frame loop, so the first throw ends the film and the page with
+ *   it, on the one browser the atlas has never been run on. Writing only when
+ *   the cursor stops means eight writes for a whole run: one per chapter.
+ *
+ * Takes the pathname rather than reading `location`, so the policy can be pinned
+ * by a test; the caller does the `history.replaceState`.
+ *
+ * `still` is carried through rather than normalized away, unlike `anchor`,
+ * `tier` and `intro`. Those three change how the same moment is *drawn*; `still`
+ * changes what the page *does*, so dropping it would make the URL a copy of
+ * something else — hand the link on and it starts moving, which is the same
+ * class of surprise as the one this function exists to stop.
+ */
+export function permalinkFor(pathname, { chapterId, date, playing, still = false }) {
+  const parts = [`chapter=${encodeURIComponent(chapterId)}`];
+  if (still) parts.push('still');
+  if (!playing) parts.push(`date=${yearToIso(date)}`);
+  return `${pathname}?${parts.join('&')}`;
 }

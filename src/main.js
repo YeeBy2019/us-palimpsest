@@ -138,17 +138,21 @@ async function boot() {
   state.openingChapter = BUILT_CHAPTERS[0] ?? null;
 
   /**
-   * Whether the page starts the film by itself.
+   * Whether the page starts the film by itself, and what to say when it does
+   * not.
    *
    * Read once, at boot, rather than watched: a viewer who turns reduced motion
    * on mid-film is asking the operating system for something, not asking this
    * page, and yanking the cursor out from under them would be a stranger
    * response than finishing the chapter.
    */
-  const autoplay = shouldAutoplay(
-    link,
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  );
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const autoplay = shouldAutoplay(link, reducedMotion);
+
+  // Set before `mount`, because the dock reads it on its first frame. The line
+  // is only ever shown while the film is stopped, and it is the difference
+  // between a still page and a page that looks broken.
+  ui.openedWith(link, reducedMotion);
 
   ui.state = state;
   ui.mount();

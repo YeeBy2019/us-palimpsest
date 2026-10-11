@@ -110,6 +110,12 @@
         <div class="dock__controls">
           <button class="dock__button" id="play" type="button" aria-pressed="false">Play</button>
           <button class="dock__button" id="rewind" type="button">Restart</button>
+          <!-- Why the atlas is not moving, while it is not. Both reasons the
+               film can decline to start — `?still` in the link, reduced motion
+               in the operating system — are invisible in the picture, and a
+               page held still on purpose is otherwise indistinguishable from a
+               page that failed. Empty whenever the film is running. -->
+          <p class="dock__hint" id="hint"></p>
           <p class="dock__material" id="material"></p>
         </div>
       </footer>
