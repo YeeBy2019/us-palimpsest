@@ -186,21 +186,17 @@ a seek does in a player — pausing there let a viewer browse the selector, swit
 noticing, and come back to a still page wondering what broke. Scrubbing still pauses, because taking
 hold of the timeline is leaving the story, and Restart still pauses, because it is a rewind.
 
-Two things hold still instead, and each is a promise the atlas has already made rather than a
-preference:
+One thing holds still, and it is a promise the atlas has already made rather than a preference:
 
 - **`?still`.** A link can name a chapter without starting a screening — sharing "look at Chapter 6"
   should not mean "and then watch it leave". It is now the only way to ask, and that is the point:
   stillness is **legible**. A page that is not moving says so in its own URL, so a viewer can tell a
   deliberate still from a picture that looks broken.
-- **`prefers-reduced-motion`.** Continuous motion is the most aggressive thing the page does, and the
-  setting belongs to the viewer rather than to whoever sent the link, so it wins. The rest of the
-  atlas's motion is still owed to that setting; see M5.
 
-A link naming a date used to be a third, and dropping it is the one thing this feature has reversed.
-The rule read well — `?chapter=wwii&date=1944-06-06` is a shot to be looked at, so it stays where it
-lands — and it failed in the direction that matters, because **the page writes its own URL**. Within a
-second of arriving, the address bar held a date. Every reload, every restored tab, every bookmark of
+A link naming a date used to be a second, and dropping it is one of two reversals this feature has
+made. The rule read well — `?chapter=wwii&date=1944-06-06` is a shot to be looked at, so it stays where
+it lands — and it failed in the direction that matters, because **the page writes its own URL**. Within
+a second of arriving, the address bar held a date. Every reload, every restored tab, every bookmark of
 the page a visitor had just watched was, under that rule, a still frame: autoplay had quietly become a
 once-ever event, with nothing on screen to say why. A rule that turns the common case into the
 exception is not a rule about links.
@@ -213,9 +209,23 @@ second for twenty-four minutes. Safari throws after a hundred in thirty seconds,
 the frame loop — the first throw would take the page with it, on the one browser the atlas has never
 been opened in. It is eight writes for a whole run now.
 
-When the film does not start, the dock says so — *Held still by the link*, or *Reduced motion* —
-beside the Play button, for exactly as long as the cursor is not moving. Both reasons are invisible in
-the picture, and the cost of leaving them unsaid was the paragraph above.
+The second reversal is the motion setting, and it is the same mistake one step further out.
+`prefers-reduced-motion` did not hold the film still, it **cancelled** it — on any machine whose
+operating system has animations switched off, which is an old laptop tuned for speed, a corporate
+image, a remote session, far more often than it is anyone with a vestibular disorder. And the atlas was
+already reading that setting two different ways on the same machine: `ui.css` reads it as *milder* —
+the chapter card still inks itself in, in 0.6 s instead of two, and the story panel simply appears —
+while `shouldAutoplay` read it as *do not run*. Cancelling the content is not a reduction of the
+motion, so the setting now reduces, and what it takes away is the pointer parallax: the one motion here
+that is both decorative and triggered by an interaction, which is the case WCAG 2.3.3 was written
+about. The film's own motion — the cursor advancing, the boundaries redrawing, the dispersal between
+chapters — is the thing being conveyed, and a version of this atlas that does not move is a version
+with nothing in it.
+
+When the film does not start, the dock says so — *Held still by the link* — beside the Play button, for
+exactly as long as the cursor is not moving. That reason is invisible in the picture, and the cost of
+leaving such a thing unsaid is the whole shape of both reversals above: a page that declines to move
+and says nothing about it is a page that reads as broken.
 
 ### What it did cost, and why a pace was not enough
 
@@ -635,8 +645,9 @@ independent content project. Track it separately and do not let it block M1–M3
 ### M5 — Ship
 
 Quality tiers with persistence, keyboard chapter navigation, `prefers-reduced-motion` across the
-dispersals and the camera, mobile fallback, deployment. Autoplay already honours the motion setting —
-it is the one piece of motion that would otherwise start without anyone asking; see *It plays itself*.
+dispersals and the camera, mobile fallback, deployment. Autoplay already reads the motion setting as
+*reduction* — it takes away the pointer parallax and nothing else — and the rest of the motion is still
+owed to it; see *It plays itself*.
 
 ### Non-goals for now
 

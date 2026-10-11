@@ -24,26 +24,26 @@ const link = (over = {}) => ({ year: null, still: false, ...over });
 
 describe('whether the atlas plays itself', () => {
   it('plays on a plain visit', () => {
-    expect(shouldAutoplay(link(), false)).toBe(true);
+    expect(shouldAutoplay(link())).toBe(true);
   });
 
   it('plays a link that names a chapter, because a chapter is a scene', () => {
     // `?chapter=division` says where to open, not what to hold still — and the
     // seven chapters after it are exactly what someone sharing that link wants
     // shown.
-    expect(shouldAutoplay(link({ chapterId: 'division' }), false)).toBe(true);
+    expect(shouldAutoplay(link({ chapterId: 'division' }))).toBe(true);
   });
 
   it('plays a link that names a date, because a date is where to open', () => {
-    // This is the reversal, and the assertion is worth its length. The rule used
-    // to be the opposite — a dated link held still, so a shot pasted into a
-    // message would not walk away from the frame it was sent for. But the page
-    // *writes its own URL*, so within a second of arriving an ordinary visitor's
-    // address bar held a date, and every reload, every restored tab and every
-    // bookmark of a page they had just watched was silently a still frame.
-    // Autoplay had become a once-ever event.
-    expect(shouldAutoplay(link({ year: 1861.28 }), false)).toBe(true);
-    expect(shouldAutoplay(link({ chapterId: 'division', year: 1861.28 }), false)).toBe(true);
+    // This is the first reversal, and the assertion is worth its length. The
+    // rule used to be the opposite — a dated link held still, so a shot pasted
+    // into a message would not walk away from the frame it was sent for. But the
+    // page *writes its own URL*, so within a second of arriving an ordinary
+    // visitor's address bar held a date, and every reload, every restored tab
+    // and every bookmark of a page they had just watched was silently a still
+    // frame. Autoplay had become a once-ever event.
+    expect(shouldAutoplay(link({ year: 1861.28 }))).toBe(true);
+    expect(shouldAutoplay(link({ chapterId: 'division', year: 1861.28 }))).toBe(true);
   });
 
   it('reads a date of zero as a date rather than as absence', () => {
@@ -52,46 +52,65 @@ describe('whether the atlas plays itself', () => {
     // between the two is a class of bug that only shows up on a value nobody
     // expected. Kept here even though the decision no longer reads `year`, since
     // `main.js` still decides whether to snap with `link.year !== null`.
-    expect(shouldAutoplay(link({ year: 0 }), false)).toBe(true);
+    expect(shouldAutoplay(link({ year: 0 }))).toBe(true);
   });
 
   it('does not play when the link asks for a still', () => {
-    expect(shouldAutoplay(link({ still: true }), false)).toBe(false);
-    expect(shouldAutoplay(link({ still: true, chapterId: 'wwii' }), false)).toBe(false);
+    expect(shouldAutoplay(link({ still: true }))).toBe(false);
+    expect(shouldAutoplay(link({ still: true, chapterId: 'wwii' }))).toBe(false);
     // And `?still` beats a date as well, since it is the only thing left that
     // means "do not move".
-    expect(shouldAutoplay(link({ still: true, year: 1861.28 }), false)).toBe(false);
+    expect(shouldAutoplay(link({ still: true, year: 1861.28 }))).toBe(false);
   });
 
-  it('does not play when the viewer has asked for less motion, whatever the link says', () => {
-    // The setting is the viewer's and the link is the sender's, so the viewer
-    // wins. `?still` is included because the two reasons are independent: this
-    // asserts the setting on its own, not its effect on a link that was already
-    // going to hold still.
-    expect(shouldAutoplay(link(), true)).toBe(false);
-    expect(shouldAutoplay(link({ chapterId: 'founding' }), true)).toBe(false);
-    expect(shouldAutoplay(link({ still: true }), true)).toBe(false);
+  it('is a function of the link alone, whatever else it is handed', () => {
+    // The guard for the second reversal (2026-10-11). This used to take
+    // `reducedMotion` as a second argument and return false whenever it was set,
+    // so the film did not start on any machine whose operating system has
+    // animations switched off — an old laptop tuned for speed, a corporate
+    // image, a remote session, far more often than anyone with a vestibular
+    // disorder — and said so only in one line of small print. The setting is now
+    // read as *milder*, which is what `ui.css` already did with it; what it
+    // takes away is the pointer parallax, in `main.js`.
+    //
+    // Behavioural first, and that is the part that matters: the natural
+    // reintroduction is `(link, reducedMotion = false)`, whose `.length` is
+    // **1** — a defaulted parameter is not counted — so an arity assertion on
+    // its own would stay green with the gate back in place. This cannot: the
+    // answer to the same link may not change because a second argument arrived.
+    for (const still of [false, true]) {
+      const subject = link({ still });
+      expect(shouldAutoplay(subject, true)).toBe(shouldAutoplay(subject));
+      expect(stillReason(subject, true)).toBe(stillReason(subject));
+    }
+
+    // And neither can be written the un-defaulted way at all.
+    expect(shouldAutoplay).toHaveLength(1);
+    expect(stillReason).toHaveLength(1);
   });
 });
 
 describe('what the page says when it is not moving', () => {
   it('says nothing when the film is about to start', () => {
-    expect(stillReason(link(), false)).toBeNull();
-    expect(stillReason(link({ chapterId: 'founding', year: 1607.36 }), false)).toBeNull();
+    expect(stillReason(link())).toBeNull();
+    expect(stillReason(link({ chapterId: 'founding', year: 1607.36 }))).toBeNull();
   });
 
-  it('names the reason the film is not starting', () => {
-    // The two reasons are both invisible in the picture, so the only place to
-    // put them is on the page: a still held on purpose and a still that looks
-    // broken are the same frame otherwise.
-    expect(stillReason(link({ still: true }), false)).toMatch(/still/i);
-    expect(stillReason(link(), true)).toMatch(/reduced motion/i);
-  });
+  it('names the link as the reason, in the only line it can produce', () => {
+    // The reason is invisible in the picture, so the only place to put it is on
+    // the page: a still held on purpose and a still that looks broken are the
+    // same frame otherwise.
+    expect(stillReason(link({ still: true }))).toMatch(/still/i);
 
-  it('prefers the setting to the link when both would hold it still', () => {
-    // The viewer's operating system is the more surprising of the two, and the
-    // one they can actually do something about, so it is the one named.
-    expect(stillReason(link({ still: true }), true)).toMatch(/reduced motion/i);
+    // And there is exactly one reason now. The viewer's motion setting used to
+    // be a second, *preferred* one — "Reduced motion — press Play to start" —
+    // and it is gone with the gate it explained. A cause that no longer causes
+    // anything is worse than no line at all, which is why this checks the whole
+    // input space rather than the one case: a reason that reappears here without
+    // a gate behind it is a page lying about why it is not moving.
+    const lines = [false, true].map((still) => stillReason(link({ still }))).filter(Boolean);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/link/i);
   });
 
   it('never says a reason while still claiming it will play', () => {
@@ -99,10 +118,8 @@ describe('what the page says when it is not moving', () => {
     // This is the assertion that they cannot: a reason for holding still is
     // present exactly when the film is not going to start.
     for (const still of [false, true]) {
-      for (const reduced of [false, true]) {
-        const subject = link({ still });
-        expect(Boolean(stillReason(subject, reduced))).toBe(!shouldAutoplay(subject, reduced));
-      }
+      const subject = link({ still });
+      expect(Boolean(stillReason(subject))).toBe(!shouldAutoplay(subject));
     }
   });
 });
@@ -153,7 +170,7 @@ describe('what the URL records', () => {
       still: true,
     });
     expect(still).toBe('/atlas/?chapter=wwii&still&date=1944-06-06');
-    expect(stillReason({ year: isoToYear('1944-06-06'), still: true }, false)).not.toBeNull();
+    expect(stillReason({ year: isoToYear('1944-06-06'), still: true })).not.toBeNull();
   });
 
   it('drops the day from a still link while the film runs', () => {

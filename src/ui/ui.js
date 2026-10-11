@@ -18,11 +18,11 @@
  *
  * And it owns the question of whether the atlas plays itself, which is a URL
  * question more than a button question: {@link shouldAutoplay} reads the link
- * and the viewer's motion setting, and says whether the film starts without
- * being asked; `main.js` is what acts on the answer. {@link permalinkFor} is the
- * other half of that question — what the page records about where it is — and
- * {@link stillReason} is the answer to the one a viewer actually asks out loud,
- * *why is it not moving*, which the dock prints beside the Play button.
+ * and says whether the film starts without being asked; `main.js` is what acts
+ * on the answer. {@link permalinkFor} is the other half of that question — what
+ * the page records about where it is — and {@link stillReason} is the answer to
+ * the one a viewer actually asks out loud, *why is it not moving*, which the
+ * dock prints beside the Play button.
  */
 
 import { isoToYear, parseIso, yearToIso, yearToLabel } from '../lib/dates.js';
@@ -68,13 +68,13 @@ export class Interface {
   stillReason = null;
 
   /**
-   * Take the link, and the viewer's motion setting, as facts about this visit.
+   * Take the link as a fact about this visit.
    *
-   * Called before `mount`, because the dock reads both on its first frame.
+   * Called before `mount`, because the dock reads it on its first frame.
    */
-  openedWith(link, reducedMotion) {
+  openedWith(link) {
     this.link = link;
-    this.stillReason = stillReason(link, reducedMotion);
+    this.stillReason = stillReason(link);
   }
 
   /** This chapter's beats, in date order. Rebuilt on a chapter change. */
@@ -395,65 +395,73 @@ export function parseDeepLink() {
 /**
  * Does the atlas start playing on its own?
  *
- * Yes by default, and on **any** link. The eight chapters are one continuous
- * run and a person who opens the page has asked to be shown it, so the atlas
- * starts itself rather than waiting to be driven — which is also the only way
- * the narrative layer gets read, since a visitor who never presses Play sees the
- * opening date and one card behind a title card.
+ * Yes, on **every** link except one that asks for a still. The eight chapters
+ * are one continuous run and a person who opens the page has asked to be shown
+ * it, so the atlas starts itself rather than waiting to be driven — which is
+ * also the only way the narrative layer gets read, since a visitor who never
+ * presses Play sees the opening date and one card behind a title card.
  *
- * A date in the URL says *where to open*, not whether to move.
+ * Two things used to be read here and neither is any more, for the same reason.
  *
- * That is a reversal, and the reason is worth keeping. The rule used to be that
- * a link naming a date held still, so a shot pasted into a message would stay on
- * the frame it was sent for. It reads well and it failed in the direction that
- * matters, because **the page writes its own URL**: `#maybeWriteUrl` records the
- * chapter and the day, so within a second of arriving, every ordinary visitor's
- * address bar contained a date. Every reload, every restored tab, every bookmark
- * of the page they had just watched was — under that rule — a still frame, and
- * autoplay became a once-ever event with nothing on screen to say why. A rule
- * that turns the common case into the exception is not a rule about links.
+ * **A date in the URL** said *where to open*, not whether to move. It read well
+ * — a shot pasted into a message would stay on the frame it was sent for — and
+ * it failed in the direction that matters, because **the page writes its own
+ * URL**: `#maybeWriteUrl` records the chapter and the day, so within a second of
+ * arriving every ordinary visitor's address bar contained a date. Every reload,
+ * every restored tab, every bookmark of the page they had just watched was a
+ * still frame, and autoplay became a once-ever event with nothing on screen to
+ * say why. A rule that turns the common case into the exception is not a rule
+ * about links. Reversed 2026-10-11.
  *
- * Stillness is now `?still`, which has a property the old clause could not have:
- * it is **legible**. A page that is not moving says so in its own URL, so a
- * viewer — or whoever is reading over their shoulder — can tell a deliberate
+ * **`prefers-reduced-motion`** used to be the other suppressor, and it was the
+ * same shape of mistake one step further out: it made the film never start on a
+ * machine whose operating system has animations switched off — an old laptop
+ * tuned for speed, a corporate image, a remote session — and the viewer on the
+ * receiving end of that setting is usually not the person the setting was
+ * written for. **The atlas was already reading the setting two different ways on
+ * the same machine.** `ui.css` reads it as *milder*: the chapter card still inks
+ * itself in, in 0.6 s instead of two; the story panel simply appears. This
+ * function read it as *cancel the content*, which is not a reduction of the
+ * motion, it is a refusal to run the program. Reversed 2026-10-11, and the
+ * setting now reduces rather than forbids: see the pointer parallax gate in
+ * `main.js`, which is the one motion here that is *triggered by interaction*
+ * and therefore the one WCAG 2.3.3 is actually about.
+ *
+ * Stillness is `?still`, which has a property neither of the old clauses could
+ * have: it is **legible**. A page that is not moving says so in its own URL, so
+ * a viewer — or whoever is reading over their shoulder — can tell a deliberate
  * still from a picture that looks broken. That distinction is the whole reason
  * this atlas bothers to tell you *why*; see {@link stillReason}.
  *
- * Two things override the default, and each is a promise the atlas has already
- * made rather than a preference:
- *
- * - **`?still`.** The escape hatch. `?chapter=wwii` is a legitimate thing to
- *   share and `?chapter=wwii&still` is how to share it without it starting to
- *   move. See the deep link table in `docs/ARCHITECTURE.md`.
- * - **`prefers-reduced-motion`.** Continuous motion is the most aggressive
- *   thing this page does, and the setting belongs to the viewer rather than to
- *   the link, so it wins even over a default. The rest of the atlas's motion is
- *   still owed to that setting and is still M5's work; this is the one case
- *   where getting it wrong means a page that moves on its own.
- *
- * Takes both inputs as arguments rather than reading the environment, so it can
+ * Takes its input as an argument rather than reading the environment, so it can
  * be pinned by a test — `parseDeepLink` above cannot be, because it has to read
- * `location`.
+ * `location`. That it takes **one** argument is itself the point, and
+ * `ui.test.js` asserts the arity: the decision cannot depend on the motion
+ * setting, and the way to say that is that it is never handed it.
  */
-export function shouldAutoplay(link, reducedMotion) {
-  return !reducedMotion && !link.still;
+export function shouldAutoplay(link) {
+  return !link.still;
 }
 
 /**
  * Why the film is not starting, in one line, or `null` when it is.
  *
- * Exists because the two reasons are both invisible in the picture: a page held
- * still by `?still` and a page held still by the operating system look exactly
- * like a page where something went wrong. This project's rule is that a state
- * nobody can see is indistinguishable from a bug, and the one time the rule was
- * broken in the other direction — the atlas declining to start and saying
- * nothing — it cost a run and a round of guessing.
+ * There is now exactly one reason, and it needs saying for the reason this
+ * function has always existed: it is invisible in the picture. A page held still
+ * by `?still` and a page where something went wrong are the same frame
+ * otherwise. This project's rule is that a state nobody can see is
+ * indistinguishable from a bug, and the one time the rule was broken in the
+ * other direction — the atlas declining to start and saying nothing — it cost a
+ * run and a round of guessing.
+ *
+ * The viewer's motion setting used to be a second, preferred reason here. It is
+ * gone with the gate it explained; a line that names a cause which no longer
+ * causes anything is worse than no line.
  *
  * Pure, and beside the predicate it explains, so the wording is pinned by a test
  * rather than typed into `main.js` where nothing can check it.
  */
-export function stillReason(link, reducedMotion) {
-  if (reducedMotion) return 'Reduced motion — press Play to start';
+export function stillReason(link) {
   if (link.still) return 'Held still by the link — press Play to start';
   return null;
 }

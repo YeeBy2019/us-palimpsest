@@ -403,7 +403,8 @@ Three things we accept as the price:
   brotli) and is the only addition; the real payload here is geometry, not JavaScript.
 - **`prefers-reduced-motion` becomes ours to honour.** GSAP has no opinion about it. The M5 checklist
   item is implemented as a global `gsap.ticker` gate rather than a per-tween opt-out, so no tween can
-  be forgotten.
+  be forgotten. What the gate does is *reduce*, not forbid — see the 2026-10-11 decision log entry for
+  why a version of this atlas that declines to run is not a reduced-motion version of anything.
 - **The uniform write stays ours.** `env/chapter.js` still eases what it owns and writes the shared
   uniforms once per frame. GSAP animates values; it does not own the uniform object, and no tween
   touches a uniform directly.
@@ -662,25 +663,36 @@ state.openingChapter = BUILT_CHAPTERS[0];
   `!isTransitioning`, so that pressing Play mid-dispersal cannot re-aim the transition in flight.
 
 The decision about whether to autoplay at all is `shouldAutoplay` in `ui/ui.js`, next to
-`parseDeepLink`, because it is mostly a URL question. It takes its two inputs as arguments rather than
-reading `location` and `matchMedia`, so it can be pinned by a test — which is the same reason its
-neighbour cannot be. It says no for exactly two reasons: `?still` in the link, and
-`prefers-reduced-motion` on the machine. A date in the URL is *where to open*, not whether to move;
-that it used to be a third reason is the single reversal in this feature, and the decision log has it.
+`parseDeepLink`, because it is mostly a URL question. It says no for exactly one reason — `?still` in the
+link — and it takes **one** argument, which is itself the statement: it was a second reading of the
+viewer's environment that made the film not start at all. `ui.test.js` pins that twice, and the order
+matters. First behaviourally, by calling it with a spare second argument and requiring the answer to
+the same link not to change; then structurally, by asserting the arity. The behavioural assertion is
+the load-bearing one, because the natural reintroduction is `(link, reducedMotion = false)` — and
+`.length` is **1** for a function with a defaulted parameter, so an arity check alone would stay green
+with the gate back in place. A date in the URL is *where to open*, not whether to move;
+`prefers-reduced-motion` is now read as *reduction* rather than as a reason not to run. Both are
+reversals, and the decision log has them.
 
-`stillReason` sits beside it and answers the other half of the same question — *why not* — because the
-two reasons are both invisible in the picture, and a page held still on purpose is otherwise
-indistinguishable from a page that failed. Its wording is pinned by a test, including one that asserts
-the invariant across all four combinations: a reason exists exactly when the film is not going to
-start. `ui/ui.test.js` also pins `permalinkFor`, the URL policy, for the same reason — the policy was
-inside a DOM method and therefore untestable, so it was extracted rather than trusted.
+`stillReason` sits beside it and answers the other half of the same question — *why not* — because that
+reason is invisible in the picture, and a page held still on purpose is otherwise indistinguishable
+from a page that failed. It has exactly one line now; the motion setting's line went with the gate it
+explained, on the rule that a cause which no longer causes anything is worse than no line. Its wording
+is pinned by a test, as is the invariant across the input space — a reason exists exactly when the film
+is not going to start — and a third that walks every input and requires exactly one line to be
+*possible*, which is what would catch a reason being re-added without a gate behind it. `ui/ui.test.js`
+also pins `permalinkFor`, the URL policy, for the same reason — the policy was inside a DOM method and
+therefore untestable, so it was extracted rather than trusted.
 
-**One trap, and it cost a run.** Headless Chrome reports `prefers-reduced-motion: reduce` by default,
-so a headless check *inherits* a page that correctly refuses to start. The first autoplay check read
-that as the feature being broken; motion has to be emulated back on with
-`Emulation.setEmulatedMedia` before the film is visible at all. The same trap points the other way
-for every other headless check in this project: motion that is not emulated is motion that is not
-being tested — which is why the audit walk has always seen a still plate and always will.
+**One trap, and it cost a run — and the reversal above has turned it inside out.** Headless Chrome
+reports `prefers-reduced-motion: reduce` by default, so a headless check used to *inherit* a page that
+correctly refused to start; the first autoplay check read that as the feature being broken, and motion
+had to be emulated back on with `Emulation.setEmulatedMedia` before the film was visible at all. Autoplay
+no longer consults the setting, so the film now starts in headless Chrome unattended — which means the
+emulation call has not gone away, it has **swapped sides**. The default is no longer the rendition you
+are trying to test: it is the *reduced* one. `setEmulatedMedia` is what you call now to check that the
+camera does follow the pointer, and the flag still points the other way for every other headless check
+in this project: motion that is not emulated is motion that is not being tested.
 
 **And a second trap, in the opposite direction, which is the one that found the bug.** A headless
 walk that samples every two seconds reported the bare URL as *playing but frozen* — the Play button
@@ -859,11 +871,10 @@ Settled on 2026-10-10, on the request that the atlas play itself:
   test. A rule that turns the common case into the exception is not a rule about links. Stillness is
   now only `?still`, which has a property the old clause could not: it is *legible*, so a page that is
   not moving says so in its own URL.
-- **`?still` overrides autoplay, and each of the two remaining suppressors is an existing promise
-  rather than a preference.** `?still` so a chapter can be shared without starting a screening;
-  `prefers-reduced-motion`, which belongs to the viewer rather than to the sender of the link. The
-  predicate is `shouldAutoplay` in `ui/ui.js`, pure so that it can be tested — `parseDeepLink` beside
-  it cannot be, and this is the larger blast radius of the two.
+- **`?still` overrides autoplay, and it is an existing promise rather than a preference.** A chapter can
+  be shared without starting a screening. `prefers-reduced-motion` was the second suppressor here until
+  2026-10-11 — see below. The predicate is `shouldAutoplay` in `ui/ui.js`, pure so that it can be
+  tested — `parseDeepLink` beside it cannot be, and this is the larger blast radius of the two.
 - **The URL records the day only while the cursor is held.** Held — paused, scrubbed, or arrived by a
   chapter click — it carries `date` to the day, so a pause is a link someone can be sent. Running, it
   carries the chapter alone, because a reload of a moving picture means *start the reel again* and
@@ -878,10 +889,10 @@ Settled on 2026-10-10, on the request that the atlas play itself:
   the next person a page that starts moving — the same surprise as the date rule, one step further
   along.
 - **The dock says why it is not moving.** `stillReason` in `ui/ui.js`, shown beside the Play button for
-  exactly as long as the cursor is stopped. Both reasons are invisible in the picture, so a page held
+  exactly as long as the cursor is stopped. That reason is invisible in the picture, so a page held
   still on purpose and a page that failed are the same screenshot; the bug above is what that costs.
-  The wording is pinned by a test, as is the invariant across all four combinations — a reason exists
-  exactly when the film is not going to start.
+  The wording is pinned by a test, as is the invariant — a reason exists exactly when the film is not
+  going to start.
 - **The film walks the built chapters, so `chapters.js` gained `nextBuiltChapter`.** The existing
   `nextChapter` walks all of `CHAPTERS`, which is the record's order and the right answer for
   anything that is about the record — but handing the film a chapter with no bundle sends it through a
@@ -900,6 +911,36 @@ Settled on 2026-10-10, on the request that the atlas play itself:
 - **Play on a finished film starts it again.** It is not a chapter restart — that is what Restart is
   for — and it is not a dead button, which was the one outcome worth code to avoid: the unit that
   stopped was the run, so Play returns to `openingChapter`.
+
+Settled on 2026-10-11, on a report that autoplay still did not work:
+
+- **`prefers-reduced-motion` no longer suppresses autoplay — the second reversal.** Reported with a
+  screenshot, and the screenshot was the answer: the dock was saying *Reduced motion — press Play to
+  start*, which is the atlas correctly declining to start on a machine whose operating system has
+  animations switched off. That is an old laptop tuned for speed, a corporate image, a remote session,
+  far more often than it is anyone with a vestibular disorder. The reason it counts as a bug rather
+  than as a working promise is that **the atlas was already reading the setting two ways on the same
+  machine**: `ui/ui.css` reads it as *milder* — the chapter card still inks itself in, in 0.6 s instead
+  of two, and the story panel simply appears — while `shouldAutoplay` read it as *do not run*. Same
+  class of mistake as the date rule, one step further out: a rule that turns the ordinary case into the
+  exception. Cancelling the content is not a reduction of the motion, and it is worth saying plainly
+  what the content is — the cursor advancing, the boundaries redrawing, the dispersal between chapters.
+  A version of this atlas that does not move is a version with nothing in it.
+- **The setting now takes away the pointer parallax, and nothing else.** `main.js` reads it once at
+  boot — not watched, because a viewer turning it on mid-film is asking their operating system for
+  something, not this page — and skips `applyParallax`. That is the only motion here that is both
+  decorative and triggered by an interaction, which is the precise case WCAG 2.3.3 is about. Skipping
+  the call is sufficient: that function is what moves the camera off the frame `frameSheet` put it in,
+  and `worldPerCssPixel` reads only `position.z`, which it never touches, so the ink keeps its weight
+  either way. The rest of the motion is still owed to the setting; it is M5's, and the READMEs say so.
+- **A suppressor that is not in the code cannot come back by accident, and arity is not the guard it
+  looks like.** `shouldAutoplay` takes one argument now, and `ui.test.js` asserts that behaviourally
+  first — called with a spare second argument, the answer for the same link may not change — and only
+  then structurally. The order is the point: the natural reintroduction is
+  `(link, reducedMotion = false)`, and `.length` is **1** for a function with a defaulted parameter, so
+  an arity check alone stays green with the gate back in place. Verified by injection, both halves, red
+  then restored; and note what the first injection showed — every other autoplay test in the block
+  stayed green with the gate restored.
 
 M0 is built end to end for **Chapter 2 Expansion (1783–1848)** and **Chapter 3 Division (1848–1865)** —
 the vertical slice's success criterion is a fifteen-second capture of Chapter 3 — and **all eight**

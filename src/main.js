@@ -138,21 +138,34 @@ async function boot() {
   state.openingChapter = BUILT_CHAPTERS[0] ?? null;
 
   /**
-   * Whether the page starts the film by itself, and what to say when it does
-   * not.
+   * Whether the page starts the film by itself, and what the viewer's motion
+   * setting costs the atlas.
    *
    * Read once, at boot, rather than watched: a viewer who turns reduced motion
    * on mid-film is asking the operating system for something, not asking this
-   * page, and yanking the cursor out from under them would be a stranger
-   * response than finishing the chapter.
+   * page, and changing the camera under them would be a stranger response than
+   * finishing the chapter.
+   *
+   * It no longer decides whether the film runs. It used to, and that was the
+   * same mistake the date rule made, one step further out: it cancelled the
+   * content for anyone whose operating system has animations switched off —
+   * which is an old laptop tuned for speed, a corporate image, a remote session
+   * far more often than it is anyone with a vestibular disorder — and it did so
+   * while `ui.css` read the very same setting as *milder* rather than *never*.
+   * See `shouldAutoplay`. What it decides now is the one motion on this page
+   * that is truly decorative and truly triggered by interaction: the parallax
+   * that follows the pointer, which is the case WCAG 2.3.3 was written about.
+   * The film's own motion — the cursor advancing, the boundaries redrawing, the
+   * dispersal between chapters — is the thing being conveyed, and a version of
+   * this atlas that does not move is a version with nothing in it.
    */
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const autoplay = shouldAutoplay(link, reducedMotion);
+  const autoplay = shouldAutoplay(link);
 
   // Set before `mount`, because the dock reads it on its first frame. The line
   // is only ever shown while the film is stopped, and it is the difference
   // between a still page and a page that looks broken.
-  ui.openedWith(link, reducedMotion);
+  ui.openedWith(link);
 
   ui.state = state;
   ui.mount();
@@ -244,7 +257,13 @@ async function boot() {
       layer.dots.uniforms.uPixelScale.value = stage.pixelScale;
     }
 
-    applyParallax(camera, pointer, dt);
+    // The pointer parallax is the atlas's only motion that is both decorative
+    // and driven by an interaction, so it is the only one the viewer's
+    // reduced-motion setting takes away. Skipping the call is enough: it is what
+    // moves the camera off the frame `frameSheet` put it in, so a camera that is
+    // never nudged stays framed. `worldPerCssPixel` reads only `position.z`,
+    // which this never touches, so the ink keeps its weight either way.
+    if (!reducedMotion) applyParallax(camera, pointer, dt);
     stage.render(scene, camera, dt);
     ui.syncDate(state.date);
 
