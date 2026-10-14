@@ -1,14 +1,85 @@
-# us-palimpsest
+<div align="center">
 
-[English](./README.md) | **简体中文**
+<p><a href="./README.md">English</a> &nbsp;·&nbsp; <b>简体中文</b></p>
 
-> 一张可以走进的美国历史地图。手绘雕版，粒子消散，时间作为第一公民。
+<a href="#八个章节"><img src="docs/media/preview.gif" width="100%" alt="日期游标扫过第三章「分裂」：美国轮廓从 1848 年 2 月一路重绘到 1865 年 4 月，右侧的故事卡在每个带日期的时刻上更换"></a>
+
+<h1>us-palimpsest</h1>
+
+<p><b>一张可以走进的美国历史地图。<br>手绘雕版，粒子消散，时间作为第一公民。</b></p>
+
+<p>
+<a href="#八个章节"><b>八个章节</b></a> &nbsp;·&nbsp;
+<a href="#运行">运行</a> &nbsp;·&nbsp;
+<a href="docs/ARCHITECTURE.md">它怎么做的</a> &nbsp;·&nbsp;
+<a href="NOTICE.md">数据来源与许可</a>
+</p>
+
+<p>
+<a href="LICENSE"><img alt="代码：MIT" src="https://img.shields.io/badge/code-MIT-7a6446?style=flat-square"></a>
+<a href="NOTICE.md"><img alt="边界数据：CC0" src="https://img.shields.io/badge/boundary%20data-CC0-7a6446?style=flat-square"></a>
+<img alt="three.js r186" src="https://img.shields.io/badge/three.js-r186-3f3f3f?style=flat-square">
+<img alt="WebGL 2" src="https://img.shields.io/badge/WebGL-2-3f3f3f?style=flat-square">
+<img alt="不用 TypeScript" src="https://img.shields.io/badge/TypeScript-none-3f3f3f?style=flat-square">
+</p>
+
+<p><sub>第三章的整个窗口——1848 年 2 月到 1865 年 4 月，正片三分二十秒——被人在七秒里推完。这里没有一帧是存下来的：边界由按区间编码的几何*逐日期*推导，所以墨是真的在生长。</sub></p>
+
+</div>
+
+<br>
 
 **us-palimpsest** 是一个基于 Three.js 的交互式美国历史三维地图集。它把不断变化的疆域、城市的兴衰与决定性的历史事件，绘制在同一张可探索的手绘地图上。时间是第一主轴：时间轴按分节推进，边界如墨水洇开般生长，城市光点逐次亮起；一个时代向另一个时代过渡时，粒子消散开来，又落回纸面。
 
 它同时也是**写出来的**：八章共承载一百零八个带日期的时刻——一条路、一次行军、一场投降、一篇演说——游标会停在上面，把它读出来。在国土轮廓已经不再移动的地方，这些故事不是地图上的点缀，它**就是**版面据以绘制的东西。
 
 美术方向参考 [Chartogne-Taillet](https://chartogne-taillet.com/en)——由 Immersive Garden 制作、Bruno Simon 开发，2020 年 12 月 2 日获 Awwwards 每日最佳网站。我们从它身上取几样东西：雕版地图的观感、可见纸面上的水彩晕染、克制的用色，以及唯一一种转场装置——动画粒子——由它把物质从一个场景带到下一个。
+
+## 八个章节
+
+八章，连续且互不重叠——每一年只属于一章——切点取在拐点上，而不是取在纪录片的选集边界上。每章渲染成一种可信的实体物质，而正是这种物质把章与章区分开来：全片只有三次配得上硬性换色，因为参考案例整站建立在单一颜色之上，稀有才让破例落地。
+
+<table>
+<tr>
+<td width="50%"><img src="docs/media/ch1-founding.webp" alt="第一章 建国，停在 1781 年 10 月"><br><b>01 &nbsp;建国</b> &nbsp;<sub>1607–1783 · 2:59</sub><br><sub>羊皮纸与铁胆墨水——约克镇，以及本章据以绘制的四条路线：它的窗口里没有任何一条州界起笔。</sub></td>
+<td width="50%"><img src="docs/media/ch2-expansion.webp" alt="第二章 扩张，停在 1846 年 6 月"><br><b>02 &nbsp;扩张</b> &nbsp;<sub>1783–1848 · 2:56</sub><br><sub>水彩晕染压在车辙之上——北纬四十九度，一个国家长到了它在大陆上的宽度。</sub></td>
+</tr>
+<tr>
+<td><img src="docs/media/ch3-division.webp" alt="第三章 分裂，停在 1865 年 4 月"><br><b>03 &nbsp;分裂</b> &nbsp;<sub>1848–1865 · 3:20</sub><br><sub>撕裂的纸边与暗红墨渍——阿波马托克斯，此前十七年里发生了六十三次边界变更。</sub></td>
+<td><img src="docs/media/ch4-industry.webp" alt="第四章 工业，停在 1869 年 5 月"><br><b>04 &nbsp;工业</b> &nbsp;<sub>1865–1900 · 2:56</sub><br><sub>蓝图网格与铁锈——一条线横贯大陆，以及第一个插图框：阿拉斯加出现在一块本来是水的角上。</sub></td>
+</tr>
+<tr>
+<td><img src="docs/media/ch5-boom.webp" alt="第五章 繁荣与萧条，停在 1929 年 10 月"><br><b>05 &nbsp;繁荣与萧条</b> &nbsp;<sub>1900–1941 · 3:08</sub><br><sub>干燥的新闻纸，金箔褪成尘暴黄——黑色星期二，繁荣到此为止。</sub></td>
+<td><img src="docs/media/ch6-wwii.webp" alt="第六章 二战，停在 1944 年 6 月"><br><b>06 &nbsp;二战</b> &nbsp;<sub>1941–1945 · 1:59</sub><br><sub>雷达绿与炮铜灰，全片第一次硬性换色——诺曼底登陆，落在一个一条边界都不动的窗口上。</sub></td>
+</tr>
+<tr>
+<td><img src="docs/media/ch7-superpower.webp" alt="第七章 超级大国，停在 1969 年 7 月"><br><b>07 &nbsp;超级大国</b> &nbsp;<sub>1945–1989 · 3:32</sub><br><sub>雷达绿向着纸色褪去——月球，以及一个轮廓再也不会移动的国家。</sub></td>
+<td><img src="docs/media/ch8-millennium.webp" alt="第八章 千禧年，停在 2021 年 1 月"><br><b>08 &nbsp;千禧年</b> &nbsp;<sub>1989–2026 · 2:59</sub><br><sub>干净的屏幕白与测绘蓝——一月六日，记录的最远端。</sub></td>
+</tr>
+</table>
+
+上面每一张截图都是片子**正在跑**时拍的，都落在某一次停留的头几秒；章节旁边那个数字是这一章放完要多长时间。至于每一张版面实际能画出什么——有多少几何、有多少撰写出来的时刻——那是数据的性质，那张表在下面的「构建状态」里。
+
+## 运行
+
+```sh
+npm install
+npm run data:build    # 从 AHCB 源数据重新生成各章数据包
+npm run dev           # http://127.0.0.1:5173
+```
+
+`npm run build` 会把静态站点写进 `dist/`，任何 web 服务器都能托管。`data/` 里生成出来的各章数据包不提交，所以 `data:build` 才是把它们放进去的那一步。
+
+任何一个时刻都可以直接从 URL 打开——这是这座地图集唯一一件能递给别人的状态：
+
+| 参数 | 含义 | 例子 |
+|---|---|---|
+| `chapter` | 打开八章中的哪一章 | `chapter=division` |
+| `date` | 把游标停在哪一天——`YYYY-MM-DD` 或 `YYYY-MM` | `date=1861-04-12` |
+| `still` | 打开这一视图但**不**开始放映 | `still` |
+| `intro` | 进来时先把开场标题卡放一遍 | `intro` |
+
+所以 `?chapter=division&date=1861-04-12` 直接开在萨姆特堡那一张上，而 `?chapter=wwii&date=1944-06-06&still` 开在诺曼底卡上并把它停住。一个只带日期、不带 `still` 的链接**照样会自动播放**，这是刻意的：页面会改写自己的 URL，所以一条"带日期就抑制自动播放"的规则，会把每一次刷新、每一个被恢复的标签页、每一个书签都变成定格。理由在「它自己就会放」里。
 
 ## 美术原则
 
@@ -19,6 +90,9 @@
 **2. 克制的用色，留三处刻意破例。** 参考案例整站建立在单一颜色（`#987654`）之上。我们在全图保持"纸与墨"的基调，各章靠*技法*区分——网线密度、线宽、晕染软硬、洇散半径——而不靠色相。只有三个时刻配得上硬性换色：分裂章的暗红、二战的雷达绿、千禧年的屏幕白。因为稀有，所以有效。
 
 **3. 粒子是唯一的转场。** 只用一种装置，贯彻到底。参考案例从不硬切、从不交叉淡入；上一幕被消散成粒子，而这些粒子成为下一幕的材质。我们照做，并且不再引入第二套转场语汇。
+
+<p align="center"><img src="docs/media/handoff.gif" width="100%" alt="第五章消散成一片粒子，落定成第六章的章节卡，雷达绿的版面在下面浮现"></p>
+<p align="center"><sub>第五章交接到第六章，真实速度。消散、换章、落回是同一个动作：把旧版面溶掉的那批粒子，正是随后沉积为新版面网线的同一批粒子。日期在消散中途跳变——那是全片唯一一个时间在无人看见的情况下移动的瞬间。</sub></p>
 
 **4. 时间是分节的，不是全局滑动的。** 见下文「时间轴模型」。
 
@@ -328,9 +402,15 @@ Pages 对站点大小限制 1 GB、单文件限制 100 MB，且不支持 Git LFS
 - **上线阶段不做县级几何。** 一万七千多个多边形。先做州与领地级。
 - **1629 年之前与 2000 年之后。** 这一条约束的是*边界几何*，不是整个地图集：叙事一直写到当下，而 2000 年之后的边界只能靠编，不能靠出处。
 
-## 开发
+## 它是怎么做出来的
 
-模块划分、渲染 pass、画质调节器与加载顺序见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)，概览如下：
+| 文档 | 覆盖什么 |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 渲染 pass、共享 uniform 契约、画质调节器、加载顺序，以及技术选型表里每一行背后的理由。 |
+| [`NOTICE.md`](NOTICE.md) | 每一个数据来源的条款，以及它要求的引用方式。 |
+| [`pipeline/`](pipeline) | 离线工具：AHCB shapefile 进，每章一份 TopoJSON 数据包出。 |
+
+## 项目结构
 
 ```
 src/
@@ -345,13 +425,7 @@ src/
 pipeline/       AHCB shapefile → 分章 TopoJSON 的构建脚本
 public/          图标集;直接分发的字体与贴图
 data/           生成的各章数据包（不提交）
-```
-
-```
-npm install
-npm run data:build    # 从 AHCB 源数据重新生成各章数据包
-npm run dev
-npm run build
+docs/media/     本文用到的截图与两段预览
 ```
 
 ## 参考

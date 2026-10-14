@@ -1,8 +1,35 @@
-# us-palimpsest
+<div align="center">
 
-**English** | [简体中文](./README.zh-CN.md)
+<p><b>English</b> &nbsp;·&nbsp; <a href="./README.zh-CN.md">简体中文</a></p>
 
-> An American history map you can walk into. Engraved by hand, dissolved in dots, time as the first citizen.
+<a href="#the-eight-chapters"><img src="docs/media/preview.gif" width="100%" alt="The date cursor running across Chapter 3, Division: the outline of the United States redrawing itself from February 1848 to April 1865, while the story card at the right changes at each dated moment"></a>
+
+<h1>us-palimpsest</h1>
+
+<p><b>An American history map you can walk into.<br>Engraved by hand, dissolved in dots, time as the first citizen.</b></p>
+
+<p>
+<a href="#the-eight-chapters"><b>The&nbsp;eight&nbsp;chapters</b></a> &nbsp;·&nbsp;
+<a href="#run-it">Run&nbsp;it</a> &nbsp;·&nbsp;
+<a href="docs/ARCHITECTURE.md">How&nbsp;it&nbsp;works</a> &nbsp;·&nbsp;
+<a href="NOTICE.md">Sources&nbsp;&amp;&nbsp;licence</a>
+</p>
+
+<p>
+<a href="LICENSE"><img alt="Code: MIT" src="https://img.shields.io/badge/code-MIT-7a6446?style=flat-square"></a>
+<a href="NOTICE.md"><img alt="Boundary data: CC0" src="https://img.shields.io/badge/boundary%20data-CC0-7a6446?style=flat-square"></a>
+<img alt="three.js r186" src="https://img.shields.io/badge/three.js-r186-3f3f3f?style=flat-square">
+<img alt="WebGL 2" src="https://img.shields.io/badge/WebGL-2-3f3f3f?style=flat-square">
+<img alt="No TypeScript" src="https://img.shields.io/badge/TypeScript-none-3f3f3f?style=flat-square">
+</p>
+
+<p><sub>Chapter 3's whole window — February 1848 to April 1865, three minutes and twenty seconds of film —
+driven past by hand in seven. Nothing here is a stored frame: the boundaries are derived from
+interval-coded geometry <em>per date</em>, so the ink genuinely grows.</sub></p>
+
+</div>
+
+<br>
 
 **us-palimpsest** is an interactive 3D atlas of American history built with Three.js. It draws
 the changing territory, the rise of cities, and decisive events onto a single hand-drawn map you
@@ -19,6 +46,65 @@ Art direction follows [Chartogne-Taillet](https://chartogne-taillet.com/en) — 
 Garden with Bruno Simon, Awwwards Site of the Day, 2 December 2020. What we take from it: an
 engraved-map aesthetic, watercolour washes on visible paper, a restrained palette, and one single
 transition device — the animated dot — that carries matter from one scene into the next.
+
+## The eight chapters
+
+Eight chapters, contiguous and non-overlapping — every year belongs to exactly one of them, cut at
+inflection dates rather than at episode boundaries. Each is rendered as a single believable physical
+substance, and the substance is the thing that distinguishes one chapter from another: a chapter earns
+a hard hue only three times in the whole run, because the reference builds an entire site on one colour
+and rarity is what makes a break land.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/media/ch1-founding.webp" alt="Chapter 1, Founding, at October 1781"><br><b>01 &nbsp;Founding</b> &nbsp;<sub>1607–1783 · 2:59</sub><br><sub>Parchment and iron-gall ink — Yorktown, and the four routes this chapter is drawn from, because no state boundary begins inside its window.</sub></td>
+<td width="50%"><img src="docs/media/ch2-expansion.webp" alt="Chapter 2, Expansion, at June 1846"><br><b>02 &nbsp;Expansion</b> &nbsp;<sub>1783–1848 · 2:56</sub><br><sub>A watercolour wash over wheel ruts — the 49th parallel, and a country at its continental width.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/media/ch3-division.webp" alt="Chapter 3, Division, at April 1865"><br><b>03 &nbsp;Division</b> &nbsp;<sub>1848–1865 · 3:20</sub><br><sub>A torn paper edge and a dark red ink stain — Appomattox, after sixty-three boundary changes in seventeen years.</sub></td>
+<td><img src="docs/media/ch4-industry.webp" alt="Chapter 4, Industry, at May 1869"><br><b>04 &nbsp;Industry</b> &nbsp;<sub>1865–1900 · 2:56</sub><br><sub>Blueprint ruling and rust — one line across the continent, and the first inset: Alaska arriving on a corner that was water.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/media/ch5-boom.webp" alt="Chapter 5, Boom and Bust, at October 1929"><br><b>05 &nbsp;Boom and Bust</b> &nbsp;<sub>1900–1941 · 3:08</sub><br><sub>Dry newsprint and gold foil going to dust yellow — Black Tuesday, and the boom is over.</sub></td>
+<td><img src="docs/media/ch6-wwii.webp" alt="Chapter 6, WWII, at June 1944"><br><b>06 &nbsp;WWII</b> &nbsp;<sub>1941–1945 · 1:59</sub><br><sub>Radar green and gunmetal, the first hard hue break — D-Day, on a window in which not one boundary moves.</sub></td>
+</tr>
+<tr>
+<td><img src="docs/media/ch7-superpower.webp" alt="Chapter 7, Superpower, at July 1969"><br><b>07 &nbsp;Superpower</b> &nbsp;<sub>1945–1989 · 3:32</sub><br><sub>Radar green decaying back toward paper — the Moon, and a country whose outline never moves again.</sub></td>
+<td><img src="docs/media/ch8-millennium.webp" alt="Chapter 8, Millennium, at January 2021"><br><b>08 &nbsp;Millennium</b> &nbsp;<sub>1989–2026 · 2:59</sub><br><sub>Clean screen white and survey blue — the sixth of January, at the far end of the record.</sub></td>
+</tr>
+</table>
+
+Every screenshot above is of the film **running**, a couple of seconds into one of its holds; the
+number beside each chapter is how long that chapter takes to play. What each plate can actually draw —
+how much geometry, how many authored moments — is a property of the data, and that table is under
+*Build status* below.
+
+## Run it
+
+```sh
+npm install
+npm run data:build    # regenerate the per-chapter bundles from the AHCB source
+npm run dev           # http://127.0.0.1:5173
+```
+
+`npm run build` writes a static site to `dist/` that any web server can host. The generated chapter
+bundles in `data/` are not committed, so `data:build` is what puts them there.
+
+Any moment can be opened straight from the URL, which is the one piece of state this atlas has that
+can be handed to someone else:
+
+| Parameter | Meaning | Example |
+|---|---|---|
+| `chapter` | which of the eight to open | `chapter=division` |
+| `date` | hold the cursor on a day — `YYYY-MM-DD` or `YYYY-MM` | `date=1861-04-12` |
+| `still` | open the view **without** starting the film | `still` |
+| `intro` | play the opening title card on the way in | `intro` |
+
+So `?chapter=division&date=1861-04-12` opens on Fort Sumter, and
+`?chapter=wwii&date=1944-06-06&still` opens on the Normandy card and holds it. A link that names a
+date but not `still` **still starts playing**, and that is deliberate: the page writes its own URL, so
+a link that suppressed autoplay for having a date in it turned every reload, restored tab and bookmark
+into a still frame. The reasoning is under *It plays itself*.
 
 ## Aesthetic direction
 
@@ -37,6 +123,12 @@ the screen white of Millennium. Because they are rare, they land.
 **3. The dot is the only transition.** One device, applied consistently. The reference never cuts
 and never cross-fades; the previous scene is dispersed into dots that become the next scene's
 material. We do the same thing, and we do not add a second transition vocabulary.
+
+<p align="center"><img src="docs/media/handoff.gif" width="100%" alt="Chapter 4 dispersing into a field of dots, settling into Chapter 6's chapter card, and the radar-green plate arriving underneath"></p>
+<p align="center"><sub>The hand-off from Chapter 4 to Chapter 6, at real speed. Disperse, swap, reform is one
+motion: the dots that dissolve the outgoing plate are the same dots that lie down as the incoming one's
+hatching. The date jumps during the dispersal — the only instant in the atlas when time moves without
+anyone seeing it.</sub></p>
 
 **4. Time is chaptered, not globally scrubbed.** See *Timeline model* below.
 
@@ -679,10 +771,15 @@ owed to it; see *It plays itself*.
 - **Anything before 1629 or after 2000.** Bound to *boundary geometry*, not to the atlas: the story
   runs to the present, and a boundary after 2000 would have to be invented rather than sourced.
 
-## Development
+## How it's made
 
-The module layout, the render passes, the quality governor and the loading order are specified in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md); in summary:
+| Document | What it covers |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | The render passes, the shared-uniform contract, the quality governor, the loading order, and the reasoning behind every row of the tech table. |
+| [`NOTICE.md`](NOTICE.md) | The terms of each data source, and the citation each one asks for. |
+| [`pipeline/`](pipeline) | The offline tools: the AHCB shapefile in, one TopoJSON bundle per chapter out. |
+
+## Project layout
 
 ```
 src/
@@ -697,13 +794,7 @@ src/
 pipeline/         AHCB shapefile -> per-chapter TopoJSON bundles
 public/           the favicon set; fonts and textures — shipped as they are
 data/             generated chapter bundles (not committed)
-```
-
-```
-npm install
-npm run data:build    # regenerate chapter bundles from AHCB source
-npm run dev
-npm run build
+docs/media/       the screenshots and the two previews used by this file
 ```
 
 ## References
