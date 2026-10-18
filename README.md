@@ -23,10 +23,6 @@
 <img alt="No TypeScript" src="https://img.shields.io/badge/TypeScript-none-3f3f3f?style=flat-square">
 </p>
 
-<p><sub>Chapter 3's whole window — February 1848 to April 1865, three minutes and twenty seconds of film —
-driven past by hand in seven. Nothing here is a stored frame: the boundaries are cut from
-interval-coded geometry <em>per date</em>, so the ink genuinely grows.</sub></p>
-
 </div>
 
 <br>

@@ -23,8 +23,6 @@
 <img alt="不用 TypeScript" src="https://img.shields.io/badge/TypeScript-none-3f3f3f?style=flat-square">
 </p>
 
-<p><sub>第三章的整个窗口——1848 年 2 月到 1865 年 4 月，三分二十秒的片子——被手动在七秒内推完。这里没有一帧是存下来的：边界由区间编码的几何<em>按日期</em>切出，所以墨是真的在生长。</sub></p>
-
 </div>
 
 <br>
