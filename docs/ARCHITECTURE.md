@@ -15,6 +15,20 @@ is the model for this file.
 
 No code is copied from it. What we take is structure.
 
+## Milestones
+
+The work is sequenced by six of them, and this is the only place they are listed: **M0** the vertical
+slice — Chapter 3 only, the pipeline and the shaders proved end to end; **M1** the spine — all eight
+chapters as one continuous run; **M2** anchors and annotation; **M3** sound; **M4** the camera dive
+into a local scene, which is 3D art production rather than data visualisation; **M5** ship — quality
+tiers with persistence, keyboard navigation, reduced motion across the dispersals and the camera,
+mobile fallback, deployment. M0 is done and M1 is built apart from its sound.
+
+They are named here rather than in the README because they are a plan, not a description of the
+atlas; the README says what exists. But the sections below are written against these names, so they
+need somewhere to resolve. Explicit non-goals for now: real 3D topography, county-level geometry, and
+boundary geometry before 1629 or after 2000.
+
 ## The decisions we take from it
 
 | Decision | Why it matters here |
@@ -983,7 +997,7 @@ Settled on 2026-10-11, on a report that autoplay still did not work:
   decorative and triggered by an interaction, which is the precise case WCAG 2.3.3 is about. Skipping
   the call is sufficient: that function is what moves the camera off the frame `frameSheet` put it in,
   and `worldPerCssPixel` reads only `position.z`, which it never touches, so the ink keeps its weight
-  either way. The rest of the motion is still owed to the setting; it is M5's, and the READMEs say so.
+  either way. The rest of the motion is still owed to the setting — the dispersals, the camera.
 - **A suppressor that is not in the code cannot come back by accident, and arity is not the guard it
   looks like.** `shouldAutoplay` takes one argument now, and `ui.test.js` asserts that behaviourally
   first — called with a spare second argument, the answer for the same link may not change — and only

@@ -166,21 +166,6 @@ How much each chapter has to draw is a property of the data:
 Chapter 1 has no boundary geometry at all: every feature that reaches its window starts on its
 closing day, so the plate is drawn from the routes its own beats carry.
 
-## Coverage
-
-What the sources can and cannot tell us, stated plainly:
-
-- **Nothing before 1629.** Chapter 1 opens in 1607 for the narrative, but boundary geometry only
-  exists from 1629, and the bundled state-level record begins later still, at **1783-09-03**.
-- **Nothing moves after 1912.** No state was admitted between Arizona in February 1912 and Alaska in
-  January 1959, and both 1959 admissions are in the insets, which keep the outline they already had.
-  Chapters 6, 7 and 8 draw a fixed coastline and are carried by their writing.
-- **AHCB stops at 2000; the record does not.** Chapter 8 closes on **2026-12-31**, a constant bumped
-  on purpose rather than `new Date()`, so the build stays reproducible and every deep link stable.
-  Its geometry after 2000 comes from TIGER/Line and is interpolated between published states.
-- **Alaska, Hawaii and DC are in.** The Alaska purchase (1867) and the annexation of Hawaii (1898)
-  both fall inside Chapter 4; Pearl Harbor opens Chapter 6; both become states inside Chapter 7.
-
 ## Art direction
 
 - **One material per chapter.** Engraved line, ink wash, watercolour bleed, blueprint grid,
@@ -235,42 +220,6 @@ geometry. Full terms and required citations: [`NOTICE.md`](NOTICE.md).
 
 The documentary *America: The Story of Us* is a structural reference. No frame, audio or transcript
 from it is in this repository.
-
-## Roadmap
-
-### M0 — Vertical slice: prove the look — done
-
-Chapter 3 only: the pipeline, paper and engraved-edge shaders, a continuous boundary morph, one dot
-transition in and one out, the 1861 anchor layer, a two-chapter selector.
-
-### M1 — The spine — in progress
-
-All eight chapters, selector, per-chapter time scales, anchors, transitions, camera states, one
-continuous run. Built; what remains on this milestone is sound.
-
-### M2 — Anchors and annotation
-
-Content depth: boundary-change annotations from AHCB's `CHANGE` field, city lights, event markers.
-
-### M3 — Sound
-
-Per-chapter ambience, crossfaded on chapter change, started on the first user gesture.
-
-### M4 — Depth
-
-Camera dive from the map into a local historical scene. This is per-scene 3D art production rather
-than data visualisation, and it is also the brief for the fourteen beats that fall off the sheet.
-
-### M5 — Ship
-
-Quality tiers with persistence, keyboard navigation, reduced motion across the dispersals and the
-camera, mobile fallback, deployment.
-
-### Non-goals for now
-
-- Real 3D topography.
-- County-level geometry.
-- Anything before 1629 or after 2000, in *boundary* geometry.
 
 ## How it's made
 
