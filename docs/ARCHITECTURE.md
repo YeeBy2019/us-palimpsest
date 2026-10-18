@@ -463,7 +463,7 @@ its dated versions and Hawaii's in all three of its own — hashing the projecte
 inset geometry collapses fifteen geometries onto exactly two shapes. AHCB re-registers one outline
 under a new political name each time the status changes, and a statehood alters nothing that is
 drawn. That is why the insets buy Chapter 4 exactly two visual events and buy Chapters 5–8 none: see
-*Decision log*, and the build-status table in the README.
+*Decision log*, and *Chapters* in the README.
 
 The District of Columbia, 68 square miles, is a marker and a label at state-level simplification — no
 geometry to derive and none to simplify.
@@ -514,8 +514,7 @@ registration error. Its life:
 - The **two chapters** after that draw it with a lighter hand, at decreasing opacity.
 - From the third chapter on it is paper texture only: no geometry, no fill-rate cost.
 
-Two things follow, and an earlier draft of the README stated them as separate rules when they are
-not:
+Two things follow, and they are not two rules:
 
 - **The visibility cap is the window, arithmetically.** A two-chapter window means the sheet never
   carries more than three anchors at once. "At most two or three visible" is not a second rule.
@@ -545,8 +544,8 @@ authored.
   store sheet coordinates once a camera existed; that would also have been a silent lie about where
   Normandy is, in exactly the case where it matters. Measured, **fourteen of the hundred and eight**
   places are not on the drawing at all — the Canal, the Pacific and European theatres, Berlin, Korea,
-  Baikonur, Moscow, the Gulf and Abbottabad — and four more are inside a panel. See *What the story
-  cannot do yet* in the README.
+  Baikonur, Moscow, the Gulf and Abbottabad — and four more are inside a panel. See *What is on the
+  plate* in the README.
 - **The panel is a pure function of the date cursor.** `beatAt(beats, state.date)` is evaluated in
   the frame loop beside the date stamp, so there is no story state, no queue and no player. Scrubbing
   backwards, deep links and Play all carry the story because they all already moved the date.
@@ -769,6 +768,13 @@ Settled on 2026-10-06:
 - **Plain JavaScript. No TypeScript.** The shader work lives in injected GLSL strings and uniform
   objects, where types earn little and cost friction.
 - **The anchor window is counted in chapters, not years.** See above.
+- **Chapters are cut at inflection dates — 1783, 1848, 1865, 1900, 1941, 1945, 1989 — not at the
+  documentary's episode boundaries.** The episode ranges overlap and leave a gap: Westward
+  (1803–1860s) and Division (1820s–1860) claim the same forty years, Heartland and Cities the same
+  twenty-five, and nothing covers the Confederation period, the Northwest Ordinance or the Louisiana
+  Purchase. A timeline allows one state per year, so the cuts go where the country's status actually
+  changed. The documentary remains the chapter spine — `episodes` in `chapters.js` records which
+  episodes each chapter re-cuts — but it does not own the bounds.
 - **Alaska, Hawaii and the District of Columbia are in scope.** AHCB covers all fifty states and the
   District in the same release, and excluding them is not historically neutral — Chapter 4 acquires
   Alaska (1867) and Hawaii (1898), Chapter 6 opens on Pearl Harbor, the Aleutian campaign of 1942–43
@@ -808,8 +814,8 @@ Settled on 2026-10-07:
   own — fifteen geometries, two shapes — so the 1959 statehoods change a name and nothing that is
   drawn. The insets therefore give Chapter 4 its two visual events, at 1867 and 1898, and give
   Chapters 5–8 nothing at all. Inside a panel the annotation layer is the only thing that can carry
-  history, which is the argument for M2 being a milestone rather than garnish. See the build-status
-  table in the README.
+  history, which is the argument for M2 being a milestone rather than garnish. See *Chapters* in the
+  README.
 - **Post-2000 change comes from a second source**, but not the one first assumed: geometry from
   **TIGER/Line**, statistics and cross-checks from **NHGIS**. The licence difference decides it. See
   *Beyond 2000* above.
